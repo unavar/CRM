@@ -33,7 +33,7 @@
 
 .ant-menu-item:hover::after {
   border-right: 3px solid #16a7b9;
-}
+}npm 
 
 .ant-menu-submenu-title .custom-menu-item {
   color: #718096; /* Ensure nested items also use custom styles */

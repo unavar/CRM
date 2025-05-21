@@ -57,6 +57,7 @@ import {
   AuditAdminRoute,
 } from "./Components/Context/ProtectedRoute";
 import AuditTrack from "./Components/Pages/AuditorTrack";
+import Summary from "./Components/Pages/Summary";
 
 function App() {
   return (
@@ -84,6 +85,7 @@ function App() {
           <Route path="/proposal" element={<ProposalTable />} />
           <Route path="/agreement" element={<AgreementTable />} />
           <Route path="/add" element={<BusinessDetail />} />
+          <Route path="/summary" element={<Summary />} />
 
           {/* View Specific Items */}
           <Route

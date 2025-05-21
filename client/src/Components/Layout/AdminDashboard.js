@@ -9,6 +9,7 @@ import {
   MenuUnfoldOutlined,
   MenuFoldOutlined,
   SettingOutlined,
+  DatabaseOutlined,
   CarryOutOutlined, 
   CreditCardOutlined
 } from "@ant-design/icons";
@@ -284,6 +285,13 @@ const AdminDashboard = ({ children }) => {
       key: "/settings",
       icon: <SettingOutlined />,
       link: "/settings/company-address",
+      roles: ["SUPER_ADMIN"],
+    },
+    {
+      label: "Summary",
+      key: "/summary",
+      icon: <DatabaseOutlined />,
+      link: "/summary",
       roles: ["SUPER_ADMIN"],
     },
 
