@@ -5,7 +5,7 @@ import { ExclamationCircleOutlined } from "@ant-design/icons";
 
 const { confirm } = Modal;
 
-const LeaveManagementModal = ({ visible, onClose, userId, workLogId }) => {
+const LeaveManagementModal = ({ visible, onClose, userId, workLogId ,onLeaveUpdated }) => {
   const [leaveData, setLeaveData] = useState(null);
   const [loading, setLoading] = useState(false);
   const [approving, setApproving] = useState(false);
@@ -22,6 +22,7 @@ const LeaveManagementModal = ({ visible, onClose, userId, workLogId }) => {
     try {
       const { data } = await axios.get(`/api/worklogs/calculateLeaveData/${userId}`);
       setLeaveData(data);
+      console.log(data);
     } catch (error) {
       console.error("Fetch error:", error);
       message.error("Failed to fetch leave data.");
@@ -49,6 +50,7 @@ const LeaveManagementModal = ({ visible, onClose, userId, workLogId }) => {
           message.success("Leave approved successfully.");
           fetchLeaveData(); // Optional: refresh balance
           onClose(); // Optionally close modal after approval
+        onLeaveUpdated(); // Call the callback to refresh the parent component
         } catch (error) {
           console.error("Approval error:", error);
           message.error(
@@ -63,7 +65,7 @@ const LeaveManagementModal = ({ visible, onClose, userId, workLogId }) => {
 
   const nonLOPColumns = [
     { title: "Leave Type", dataIndex: "type", key: "type" },
-    { title: "This Month(Taken)", dataIndex: "thisMonth", key: "thisMonth" },
+    { title: "This Month(Available)", dataIndex: "thisMonth", key: "thisMonth" },
     { title: "Overall(Available)", dataIndex: "overall", key: "overall" },
   ];
 
@@ -123,7 +125,7 @@ const LeaveManagementModal = ({ visible, onClose, userId, workLogId }) => {
           type="primary"
           loading={approving}
           onClick={handleApprove}
-          disabled={!workLogId}
+          disabled={leaveData?.totalLeavesTaken?.status === "approved"}
         >
           Approve
         </Button>,

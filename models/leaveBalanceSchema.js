@@ -47,6 +47,8 @@ const leaveBalanceSchema = new mongoose.Schema(
       type: Number,
       default: 0, // Overall casual leave taken
     },
+    lastMonthlyReset: { type: Date, default: null },
+    lastFinancialYearReset: { type: Date, default: null },
   },
   { timestamps: true }
 );

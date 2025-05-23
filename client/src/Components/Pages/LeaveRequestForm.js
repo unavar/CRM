@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { Modal, Form, DatePicker, Radio, Input, Button, message } from "antd";
 import axios from "axios";
 
@@ -8,6 +8,26 @@ const { RangePicker } = DatePicker;
 const LeaveRequestForm = ({ visible, onClose, auditorId }) => {
   const [form] = Form.useForm();
   const [loading, setLoading] = useState(false);
+  const [leaveBalance, setLeaveBalance] = useState({
+    sickLeaveAvailable: 0,
+    casualLeaveAvailable: 0,
+  });
+
+  useEffect(() => {
+    const fetchLeaveBalance = async () => {
+      try {
+        const response = await axios.get(`/api/worklogs/calculateLeaveData/${auditorId}`);
+        setLeaveBalance({
+          sickLeaveAvailable: response.data.nonLOPLeavesAvailable.sick.thisMonth,
+          casualLeaveAvailable: response.data.nonLOPLeavesAvailable.casual.thisMonth
+        });
+      } catch (error) {
+        console.error("Error fetching leave balance:", error);
+        message.error("Failed to fetch leave balance information");
+      }
+    };
+    fetchLeaveBalance();
+  }, [auditorId]);
 
   const handleSubmit = async (values) => {
     setLoading(true);
@@ -16,9 +36,9 @@ const LeaveRequestForm = ({ visible, onClose, auditorId }) => {
         userId: auditorId,
         fromDate: values.dates[0],
         toDate: values.dates[1],
-        leaveType: values.leaveType, // now it's a string
+        leaveType: values.leaveType,
         reason: values.reason,
-        date: new Date(), // Add current date if not using one from UI
+        date: new Date(),
       });
 
       message.success("Leave request submitted successfully.");
@@ -55,11 +75,16 @@ const LeaveRequestForm = ({ visible, onClose, auditorId }) => {
         <Form.Item
           name="leaveType"
           label="Leave Type"
+          dependencies={['leaveBalance']}
           rules={[{ required: true, message: "Please select a leave type." }]}
         >
           <Radio.Group>
-            <Radio value="sickLeave">Sick Leave</Radio>
-            <Radio value="casualLeave">Casual Leave</Radio>
+            <Radio value="sickLeave" disabled={leaveBalance.sickLeaveAvailable === 0}>
+              Sick Leave ({leaveBalance.sickLeaveAvailable} available)
+            </Radio>
+            <Radio value="casualLeave" disabled={leaveBalance.casualLeaveAvailable === 0}>
+              Casual Leave ({leaveBalance.casualLeaveAvailable} available)
+            </Radio>
           </Radio.Group>
         </Form.Item>
 

@@ -172,8 +172,11 @@ export const getAllWorkLogsByUser = async (req, res) => {
         .status(400)
         .json({ message: "Invalid page or pageSize parameter" });
     }
-
     let query = { userId };
+
+    
+      // Exclude leave type from query
+      query.workType = { $ne: "leave" };
 
     // Add date filter if provided
     if (date) {
@@ -301,6 +304,9 @@ export const getAllWorkLogs = async (req, res) => {
       }
       query.userId = userId;
     }
+
+    // Exclude leave type from query
+    query.workType = { $ne: "leave" };
 
     // Date filtering logic
     if (fromDate && !toDate) {
@@ -656,35 +662,41 @@ export const approveLeaveRequest = async (req, res) => {
     let leaveDescription = "";
 
     if (leaveType === "sickLeave") {
-      const available = leaveBalance.sickLeave;
+      const available = leaveBalance.sickLeaveAvailable || 0;
+
       if (available >= leaveDays) {
-        leaveBalance.sickLeave -= leaveDays;
+        leaveBalance.sickLeaveAvailable -= leaveDays;
         leaveBalance.sickLeaveTotalMonth += leaveDays;
         leaveBalance.sickLeaveOverall += leaveDays;
         leaveDescription = `Approved with ${leaveDays} SL`;
       } else {
-        lopDays = leaveDays - available;
-        leaveBalance.sickLeave = 0;
-        leaveBalance.sickLeaveTotalMonth += available;
-        leaveBalance.sickLeaveOverall += available;
-        leaveDescription = `Approved with ${available} SL and ${lopDays} LOP`;
+        const usedSL = available;
+        lopDays = leaveDays - usedSL;
+
+        leaveBalance.sickLeaveAvailable = 0;
+        leaveBalance.sickLeaveTotalMonth += usedSL;
+        leaveBalance.sickLeaveOverall += usedSL;
+
+        leaveDescription = `Approved with ${usedSL} SL and ${lopDays} LOP`;
       }
     } else if (leaveType === "casualLeave") {
-      const available = leaveBalance.casualLeave;
+      const available = leaveBalance.casualLeaveAvailable || 0;
+
       if (available >= leaveDays) {
-        leaveBalance.casualLeave -= leaveDays;
+        leaveBalance.casualLeaveAvailable -= leaveDays;
         leaveBalance.casualLeaveTotalMonth += leaveDays;
         leaveBalance.casualLeaveOverall += leaveDays;
         leaveDescription = `Approved with ${leaveDays} CL`;
       } else {
-        lopDays = leaveDays - available;
-        leaveBalance.casualLeave = 0;
-        leaveBalance.casualLeaveTotalMonth += available;
-        leaveBalance.casualLeaveOverall += available;
-        leaveDescription = `Approved with ${available} CL and ${lopDays} LOP`;
+        const usedCL = available;
+        lopDays = leaveDays - usedCL;
+
+        leaveBalance.casualLeaveAvailable = 0;
+        leaveBalance.casualLeaveTotalMonth += usedCL;
+        leaveBalance.casualLeaveOverall += usedCL;
+
+        leaveDescription = `Approved with ${usedCL} CL and ${lopDays} LOP`;
       }
-    } else {
-      return res.status(400).json({ message: "Invalid leave type" });
     }
 
     // 6. Update leave request
@@ -719,15 +731,18 @@ export const calculateLeaveData = async (req, res) => {
       return res.status(400).json({ message: "Invalid user ID" });
     }
 
-    const startOfMonth = moment().startOf("month");
-    const endOfMonth = moment().endOf("month");
+    const startOfMonth = moment().startOf("month").toDate();
+    const endOfMonth = moment().endOf("month").toDate();
 
-    let leaveBalance = await LeaveBalance.findOne({ userId });
+    const objectUserId = new mongoose.Types.ObjectId(userId);
 
-    // If not found, create default balance
+    let leaveBalance = await LeaveBalance.findOne({ userId: objectUserId });
+
     if (!leaveBalance) {
+      const today = moment().toDate(); // or new Date()
+
       leaveBalance = await LeaveBalance.create({
-        userId,
+        userId: objectUserId,
         sickLeave: 2,
         casualLeave: 2,
         sickLeaveAvailable: 2,
@@ -736,7 +751,70 @@ export const calculateLeaveData = async (req, res) => {
         sickLeaveOverall: 0,
         casualLeaveTotalMonth: 0,
         casualLeaveOverall: 0,
+        lastMonthlyReset: moment().toDate(),
+        lastFinancialYearReset: moment().toDate(), // or null if you prefer
       });
+    }
+
+    const today = moment();
+
+    // Check if today is April 1st
+    const isFinancialYearStart = today.date() === 1 && today.month() === 3;
+
+    // Optional: Add this field in your LeaveBalance model if not present
+    // lastFinancialYearReset: { type: Date, default: null }
+
+    const lastFYReset = leaveBalance.lastFinancialYearReset
+      ? moment(leaveBalance.lastFinancialYearReset)
+      : null;
+    const alreadyResetThisFY = lastFYReset?.isSame(today, "day");
+
+    if (isFinancialYearStart && !alreadyResetThisFY) {
+      // Reset overall balances
+      leaveBalance.sickLeaveOverall = 0;
+      leaveBalance.casualLeaveOverall = 0;
+
+      // Reset available leave for new year
+      leaveBalance.sickLeaveAvailable = 2;
+      leaveBalance.casualLeaveAvailable = 2;
+
+      leaveBalance.sickLeave = 2;
+      leaveBalance.casualLeave = 2;
+
+      // Also reset monthly leave counters for April
+      leaveBalance.sickLeaveTotalMonth = 0;
+      leaveBalance.casualLeaveTotalMonth = 0;
+
+      leaveBalance.lastFinancialYearReset = today.toDate();
+      await leaveBalance.save();
+    }
+
+    // Check if today is 1st day of any month
+    const isFirstDayOfMonth = today.date() === 1;
+
+    const lastMonthlyReset = leaveBalance.lastMonthlyReset
+      ? moment(leaveBalance.lastMonthlyReset)
+      : null;
+    const alreadyResetThisMonth =
+      lastMonthlyReset?.month() === today.month() &&
+      lastMonthlyReset?.year() === today.year();
+
+    if (isFirstDayOfMonth && !alreadyResetThisMonth) {
+      console.log("Resetting monthly leave usage");
+      
+      // Reset monthly leave usage
+      leaveBalance.sickLeaveTotalMonth = 0;
+      leaveBalance.casualLeaveTotalMonth = 0;
+
+      // Add monthly leaves (e.g., 2 per month)
+      leaveBalance.sickLeaveAvailable += 2;
+      leaveBalance.casualLeaveAvailable += 2;
+
+      leaveBalance.sickLeave = leaveBalance.sickLeaveAvailable;
+      leaveBalance.casualLeave = leaveBalance.casualLeaveAvailable;
+
+      leaveBalance.lastMonthlyReset = today.toDate();
+      await leaveBalance.save();
     }
 
     const approvedLeaves = await WorkLog.find({
@@ -753,41 +831,36 @@ export const calculateLeaveData = async (req, res) => {
     approvedLeaves.forEach((leave) => {
       const from = moment(leave.fromDate);
       const to = moment(leave.toDate);
-      const days = to.diff(from, "days") + 1;
+      const totalDays = to.diff(from, "days") + 1;
 
       const isThisMonth = from.isBetween(startOfMonth, endOfMonth, "day", "[]");
 
-      if (leave.isLOP) {
-        // Only count as LOP, don't mix with sick/casual
-        leaveTaken.overall.lop += days;
-        if (isThisMonth) leaveTaken.thisMonth.lop += days;
-      } else if (leave.leaveType === "casualLeave") {
-        leaveTaken.overall.casual += days;
-        if (isThisMonth) leaveTaken.thisMonth.casual += days;
+      const lopDays = leave.lopDays || 0;
+      const approvedDays = totalDays - lopDays;
+
+      // Add LOP days
+      leaveTaken.overall.lop += lopDays;
+      if (isThisMonth) leaveTaken.thisMonth.lop += lopDays;
+
+      // Add approved non-LOP days based on leaveType
+      if (leave.leaveType === "casualLeave") {
+        leaveTaken.overall.casual += approvedDays;
+        if (isThisMonth) leaveTaken.thisMonth.casual += approvedDays;
       } else if (leave.leaveType === "sickLeave") {
-        leaveTaken.overall.sick += days;
-        if (isThisMonth) leaveTaken.thisMonth.sick += days;
+        leaveTaken.overall.sick += approvedDays;
+        if (isThisMonth) leaveTaken.thisMonth.sick += approvedDays;
       }
     });
-
-    const lopLeaves = approvedLeaves.filter((l) => l.isLOP);
-    console.log("LOP Leaves:", lopLeaves);
 
     const response = {
       nonLOPLeavesAvailable: {
         sick: {
-          thisMonth: Math.max(
-            0,
-            leaveBalance.sickLeaveAvailable - leaveBalance.sickLeave
-          ),
-          overall: leaveBalance.sickLeaveAvailable,
+          thisMonth: leaveBalance.sickLeaveAvailable,
+          overall: leaveBalance.sickLeave,
         },
         casual: {
-          thisMonth: Math.max(
-            0,
-            leaveBalance.casualLeaveAvailable - leaveBalance.casualLeave
-          ),
-          overall: leaveBalance.casualLeaveAvailable,
+          thisMonth: leaveBalance.casualLeaveAvailable,
+          overall: leaveBalance.casualLeave,
         },
       },
       totalLeavesTaken: {
@@ -796,19 +869,15 @@ export const calculateLeaveData = async (req, res) => {
           overall: leaveTaken.overall.lop,
         },
         sick: {
-          thisMonth: Math.max(
-            0,
-            leaveBalance.sickLeaveAvailable - leaveBalance.sickLeave
-          ),
+          thisMonth: leaveBalance.sickLeave - leaveBalance.sickLeaveAvailable,
           overall: leaveBalance.sickLeaveOverall,
         },
         casual: {
-          thisMonth: Math.max(
-            0,
-            leaveBalance.casualLeaveAvailable - leaveBalance.casualLeave
-          ),
+          thisMonth:
+            leaveBalance.casualLeave - leaveBalance.casualLeaveAvailable,
           overall: leaveBalance.casualLeaveOverall,
         },
+        status: approvedLeaves.length > 0 ? "approved" : "pending",
       },
     };
 
