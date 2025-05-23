@@ -174,9 +174,8 @@ export const getAllWorkLogsByUser = async (req, res) => {
     }
     let query = { userId };
 
-    
-      // Exclude leave type from query
-      query.workType = { $ne: "leave" };
+    // Exclude leave type from query
+    query.workType = { $ne: "leave" };
 
     // Add date filter if provided
     if (date) {
@@ -762,7 +761,6 @@ export const calculateLeaveData = async (req, res) => {
     const isFinancialYearStart = today.date() === 1 && today.month() === 3;
 
     // Optional: Add this field in your LeaveBalance model if not present
-    // lastFinancialYearReset: { type: Date, default: null }
 
     const lastFYReset = leaveBalance.lastFinancialYearReset
       ? moment(leaveBalance.lastFinancialYearReset)
@@ -801,7 +799,7 @@ export const calculateLeaveData = async (req, res) => {
 
     if (isFirstDayOfMonth && !alreadyResetThisMonth) {
       console.log("Resetting monthly leave usage");
-      
+
       // Reset monthly leave usage
       leaveBalance.sickLeaveTotalMonth = 0;
       leaveBalance.casualLeaveTotalMonth = 0;
@@ -851,7 +849,18 @@ export const calculateLeaveData = async (req, res) => {
         if (isThisMonth) leaveTaken.thisMonth.sick += approvedDays;
       }
     });
+    const latestLeave = await WorkLog.findOne({
+      userId,
+      workType: "leave",
+    }).sort({ createdAt: -1 }); // Use createdAt if you're logging timestamps
 
+    let latestLeaveStatus = "pending";
+    if (latestLeave) {
+      latestLeaveStatus =
+        latestLeave.leaveStatus && latestLeave.leaveStatus === "approved"
+          ? "approved"
+          : "pending";
+    }
     const response = {
       nonLOPLeavesAvailable: {
         sick: {
@@ -877,7 +886,7 @@ export const calculateLeaveData = async (req, res) => {
             leaveBalance.casualLeave - leaveBalance.casualLeaveAvailable,
           overall: leaveBalance.casualLeaveOverall,
         },
-        status: approvedLeaves.length > 0 ? "approved" : "pending",
+       status: latestLeaveStatus,
       },
     };
 
