@@ -80,6 +80,9 @@ const WorkLogForm = ({ isModalOpen, handleOk, handleCancel }) => {
         if (error.response.status === 401) {
           message.error("Work log entry already exists for today");
           return;
+        }else if(error.response.status === 400){
+          message.error("Time cannot overlap with existing work logs");
+          return;
         }
       }
     }
@@ -132,7 +135,7 @@ const WorkLogForm = ({ isModalOpen, handleOk, handleCancel }) => {
             <Option value="wfh">WFH</Option>
             <Option value="office">Office</Option>
             <Option value="onDuty">On Duty</Option>
-            <Option value="absent">Absent</Option>
+            {/* <Option value="absent">Absent</Option> */}
           </Select>
         </Form.Item>
 

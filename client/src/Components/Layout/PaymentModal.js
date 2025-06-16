@@ -1,10 +1,10 @@
 import React, { useState } from "react";
 import { Modal, Button, Input, Upload, Form, message } from "antd";
-import { UploadOutlined } from "@ant-design/icons";
+import { AlertOutlined, UploadOutlined } from "@ant-design/icons";
 import axios from "axios";
 import { useAuth } from "../Context/AuthContext";
 
-const PaymentModal = ({ visible, handleCancel, proposalId }) => {
+const PaymentModal = ({ visible, handleCancel, proposalId, balanceAmount }) => {
   const [form] = Form.useForm();
   const { user } = useAuth();
   const [fileList, setFileList] = useState([]);
@@ -18,6 +18,17 @@ const PaymentModal = ({ visible, handleCancel, proposalId }) => {
   const handleSubmit = async () => {
     try {
       const values = await form.validateFields();
+      const numericBalanceAmount = parseFloat(
+        balanceAmount.toString().replace(/[^\d.-]/g, "")
+      );
+
+      if (values.amountReceived > numericBalanceAmount) {
+        message.error(
+          "Amount received cannot be greater than the balance amount."
+        );
+        return;
+      }
+
       const formData = new FormData();
 
       formData.append("amountReceived", values.amountReceived);
@@ -35,9 +46,13 @@ const PaymentModal = ({ visible, handleCancel, proposalId }) => {
       }
 
       // Send data to backend
-      const response = await axios.post("/api/payment/saveAuditorPayment", formData, {
-        headers: { "Content-Type": "multipart/form-data" },
-      });
+      const response = await axios.post(
+        "/api/payment/saveAuditorPayment",
+        formData,
+        {
+          headers: { "Content-Type": "multipart/form-data" },
+        }
+      );
 
       message.success(response.data.message);
       form.resetFields();
@@ -61,7 +76,9 @@ const PaymentModal = ({ visible, handleCancel, proposalId }) => {
         <Form.Item
           name="amountReceived"
           label="Amount Received"
-          rules={[{ required: true, message: "Please enter the amount received" }]}
+          rules={[
+            { required: true, message: "Please enter the amount received" },
+          ]}
         >
           <Input placeholder="Enter amount received" />
         </Form.Item>
@@ -69,7 +86,9 @@ const PaymentModal = ({ visible, handleCancel, proposalId }) => {
         <Form.Item
           name="referenceNumber"
           label="Reference Number"
-          rules={[{ required: true, message: "Please enter the reference number" }]}
+          rules={[
+            { required: true, message: "Please enter the reference number" },
+          ]}
         >
           <Input placeholder="Enter reference number" />
         </Form.Item>

@@ -25,6 +25,29 @@ export const createWorkLog = async (req, res) => {
       });
     }
 
+    // Check for overlapping work logs for the same user on the same day
+    if (startTime && endTime) {
+      const start = new Date(startTime);
+      const end = new Date(endTime);
+      const dayStart = new Date(start);
+      dayStart.setHours(0, 0, 0, 0);
+      const dayEnd = new Date(start);
+      dayEnd.setHours(23, 59, 59, 999);
+
+      const overlappingLog = await WorkLog.findOne({
+        userId,
+        startTime: { $lt: end },
+        endTime: { $gt: start },
+        createdAt: { $gte: dayStart, $lte: dayEnd },
+      });
+      if (overlappingLog) {
+        return res.status(400).json({
+          message:
+            "Work log overlaps with an existing entry for this day. Please choose a different time range.",
+        });
+      }
+    }
+
     // Create a new work log entry
     const workLog = new WorkLog({
       userId,
@@ -441,7 +464,7 @@ export const submitLeaveRequest = async (req, res) => {
   try {
     const { userId, leaveType, reason, fromDate, toDate } = req.body;
 
-    if (!userId || !leaveType || !reason || !fromDate || !toDate) {
+    if (!userId || !reason || !fromDate || !toDate) {
       return res.status(400).json({ message: "Missing required fields" });
     }
 
@@ -451,29 +474,32 @@ export const submitLeaveRequest = async (req, res) => {
     if (!leaveBalance) {
       leaveBalance = await LeaveBalance.create({
         userId,
-        sickLeave: 2,
-        casualLeave: 2,
+        sickLeave: 1,
+        casualLeave: 1,
         casualLeaveHistory: [],
       });
     }
 
     // Check LOP
     let isLOP = false;
-    if (leaveType === "sickLeave" && leaveBalance.sickLeave <= 0) isLOP = true;
-    if (leaveType === "casualLeave" && leaveBalance.casualLeave <= 0)
-      isLOP = true;
+    if (leaveType) {
+      if (leaveType === "sickLeave" && leaveBalance.sickLeave <= 0)
+        isLOP = true;
+      if (leaveType === "casualLeave" && leaveBalance.casualLeave <= 0)
+        isLOP = true;
+    }
 
     // Create work log (leave request)
     const leaveRequest = new WorkLog({
       userId,
       workType: "leave",
-      leaveType,
+      leaveType: leaveType || "lop", // Default to unpaid if no leave type specified
       reason,
       startTime: new Date(fromDate),
       endTime: new Date(toDate),
-      fromDate: new Date(fromDate), // Add this line
-      toDate: new Date(toDate), // Add this line
-      isLOP,
+      fromDate: new Date(fromDate),
+      toDate: new Date(toDate),
+      isLOP: leaveType ? isLOP : true, // If no leave type, it's automatically LOP
       leaveStatus: "pending",
     });
 
@@ -656,46 +682,79 @@ export const approveLeaveRequest = async (req, res) => {
       res.status(404).json({ message: "Leave balance not found" });
     }
 
+    // Check if leave spans multiple months
+    const fromMonth = moment(fromDate).month();
+    const toMonth = moment(toDate).month();
+    const isDifferentMonth = fromMonth !== toMonth;
+
     // 5. Deduct leave or apply LOP
     let lopDays = 0;
     let leaveDescription = "";
 
     if (leaveType === "sickLeave") {
-      const available = leaveBalance.sickLeaveAvailable || 0;
+      let available = leaveBalance.sickLeaveAvailable || 0;
+      let allowedCarryForward = 0;
+
+      if (isDifferentMonth && available < leaveDays) {
+        allowedCarryForward = 1;
+        available += 1; // Temporarily allow 1 extra
+        leaveBalance.sickTakenNextMonth = true;
+      }
 
       if (available >= leaveDays) {
-        leaveBalance.sickLeaveAvailable -= leaveDays;
-        leaveBalance.sickLeaveTotalMonth += leaveDays;
-        leaveBalance.sickLeaveOverall += leaveDays;
-        leaveDescription = `Approved with ${leaveDays} SL`;
+        const totalUsed = leaveDays;
+        leaveBalance.sickLeaveAvailable = Math.max(
+          leaveBalance.sickLeaveAvailable - (totalUsed - allowedCarryForward),
+          0
+        );
+        leaveBalance.sickLeaveTotalMonth += totalUsed;
+        leaveBalance.sickLeaveOverall += totalUsed;
+        leaveDescription = `Approved with ${totalUsed} SL`;
       } else {
         const usedSL = available;
         lopDays = leaveDays - usedSL;
-
-        leaveBalance.sickLeaveAvailable = 0;
+        leaveBalance.sickLeaveAvailable = Math.max(
+          leaveBalance.sickLeaveAvailable - (usedSL - allowedCarryForward),
+          0
+        );
         leaveBalance.sickLeaveTotalMonth += usedSL;
         leaveBalance.sickLeaveOverall += usedSL;
-
         leaveDescription = `Approved with ${usedSL} SL and ${lopDays} LOP`;
       }
     } else if (leaveType === "casualLeave") {
-      const available = leaveBalance.casualLeaveAvailable || 0;
+      let available = leaveBalance.casualLeaveAvailable || 0;
+      let allowedCarryForward = 0;
+
+      if (isDifferentMonth && available < leaveDays) {
+        allowedCarryForward = 1;
+        available += 1; // Temporarily allow 1 extra
+        leaveBalance.casualTakenNextMonth = true;
+      }
 
       if (available >= leaveDays) {
-        leaveBalance.casualLeaveAvailable -= leaveDays;
-        leaveBalance.casualLeaveTotalMonth += leaveDays;
-        leaveBalance.casualLeaveOverall += leaveDays;
-        leaveDescription = `Approved with ${leaveDays} CL`;
+        const totalUsed = leaveDays;
+        leaveBalance.casualLeaveAvailable = Math.max(
+          leaveBalance.casualLeaveAvailable - (totalUsed - allowedCarryForward),
+          0
+        );
+        leaveBalance.casualLeaveTotalMonth += totalUsed;
+        leaveBalance.casualLeaveOverall += totalUsed;
+        leaveDescription = `Approved with ${totalUsed} CL`;
       } else {
         const usedCL = available;
         lopDays = leaveDays - usedCL;
-
-        leaveBalance.casualLeaveAvailable = 0;
+        leaveBalance.casualLeaveAvailable = Math.max(
+          leaveBalance.casualLeaveAvailable - (usedCL - allowedCarryForward),
+          0
+        );
         leaveBalance.casualLeaveTotalMonth += usedCL;
         leaveBalance.casualLeaveOverall += usedCL;
-
         leaveDescription = `Approved with ${usedCL} CL and ${lopDays} LOP`;
       }
+    } else {
+      // Leave type not SL or CL = full LOP
+      lopDays = leaveDays;
+      leaveDescription = `Approved with ${leaveDays} LOP`;
     }
 
     // 6. Update leave request
@@ -742,10 +801,10 @@ export const calculateLeaveData = async (req, res) => {
 
       leaveBalance = await LeaveBalance.create({
         userId: objectUserId,
-        sickLeave: 2,
-        casualLeave: 2,
-        sickLeaveAvailable: 2,
-        casualLeaveAvailable: 2,
+        sickLeave: 1,
+        casualLeave: 1,
+        sickLeaveAvailable: 1,
+        casualLeaveAvailable: 1,
         sickLeaveTotalMonth: 0,
         sickLeaveOverall: 0,
         casualLeaveTotalMonth: 0,
@@ -773,11 +832,11 @@ export const calculateLeaveData = async (req, res) => {
       leaveBalance.casualLeaveOverall = 0;
 
       // Reset available leave for new year
-      leaveBalance.sickLeaveAvailable = 2;
-      leaveBalance.casualLeaveAvailable = 2;
+      leaveBalance.sickLeaveAvailable = 1;
+      leaveBalance.casualLeaveAvailable = 1;
 
-      leaveBalance.sickLeave = 2;
-      leaveBalance.casualLeave = 2;
+      leaveBalance.sickLeave = 1;
+      leaveBalance.casualLeave = 1;
 
       // Also reset monthly leave counters for April
       leaveBalance.sickLeaveTotalMonth = 0;
@@ -805,8 +864,8 @@ export const calculateLeaveData = async (req, res) => {
       leaveBalance.casualLeaveTotalMonth = 0;
 
       // Add monthly leaves (e.g., 2 per month)
-      leaveBalance.sickLeaveAvailable += 2;
-      leaveBalance.casualLeaveAvailable += 2;
+      leaveBalance.sickLeaveAvailable += 1;
+      leaveBalance.casualLeaveAvailable += 1;
 
       leaveBalance.sickLeave = leaveBalance.sickLeaveAvailable;
       leaveBalance.casualLeave = leaveBalance.casualLeaveAvailable;
@@ -864,12 +923,13 @@ export const calculateLeaveData = async (req, res) => {
     const response = {
       nonLOPLeavesAvailable: {
         sick: {
-          thisMonth: leaveBalance.sickLeaveAvailable,
-          overall: leaveBalance.sickLeave,
+          thisMonth: leaveBalance.sickLeaveTotalMonth ,
+          overall: leaveBalance.sickLeaveAvailable,
         },
         casual: {
-          thisMonth: leaveBalance.casualLeaveAvailable,
-          overall: leaveBalance.casualLeave,
+          thisMonth:
+         leaveBalance.casualLeaveTotalMonth ,
+          overall: leaveBalance.casualLeaveAvailable,
         },
       },
       totalLeavesTaken: {
@@ -878,15 +938,15 @@ export const calculateLeaveData = async (req, res) => {
           overall: leaveTaken.overall.lop,
         },
         sick: {
-          thisMonth: leaveBalance.sickLeave - leaveBalance.sickLeaveAvailable,
+          thisMonth: leaveBalance.sickLeaveTotalMonth ,
           overall: leaveBalance.sickLeaveOverall,
         },
         casual: {
           thisMonth:
-            leaveBalance.casualLeave - leaveBalance.casualLeaveAvailable,
+          leaveBalance.casualLeaveTotalMonth ,
           overall: leaveBalance.casualLeaveOverall,
         },
-       status: latestLeaveStatus,
+        status: latestLeaveStatus,
       },
     };
 
@@ -924,46 +984,227 @@ export const checkLeaveBalanceLeftOrNot = async (req, res) => {
 
 export const simulateCarryForward = async (req, res) => {
   try {
-    const { userId } = req.params; // Get userId from request params
+    const { userId } = req.params;
     const userLeave = await LeaveBalance.findOne({ userId });
 
     if (!userLeave) {
       return res.status(404).json({ message: "User leave not found" });
     }
 
-    const today = moment().add(1, "month"); // Simulate next month's date
-    const currentMonth = today.month() + 1; // 1-indexed
-    const currentYear = today.year();
+    // 1. Simulate carry forward logic
+    // Carry forward 1 sick leave if not already taken from next month
+    if (!userLeave.sickTakenNextMonth) {
+      userLeave.sickLeaveAvailable += 1;
+    }
 
-    // Check if it's the start of a new month
-    const lastMonth = today.subtract(1, "month"); // Get the previous month
+    // 2. Reset casual leave every month (no carry forward)
+    userLeave.casualLeaveAvailable = 1;
 
-    // Track sick leave usage (just a cumulative total)
-    const lastMonthSickLeave = userLeave.sickLeave;
+    // 3. Reset the monthly flags
+    userLeave.sickTakenNextMonth = false;
+    userLeave.casualTakenNextMonth = false;
 
-    userLeave.casualLeaveOverall += userLeave.casualLeaveTotalMonth; // Add the total casual leave taken to overall
-    userLeave.casualLeaveTotalMonth = 0; // Reset monthly casual leave taken
+    // Optional: Reset monthly totals (if needed)
+    userLeave.sickLeaveTotalMonth = 0;
+    userLeave.casualLeaveTotalMonth = 0;
 
-    userLeave.casualLeaveOverall += userLeave.casualLeave;
-
-    // Update the sick leave for the current month
-    userLeave.sickLeave = 2 + lastMonthSickLeave; // New sick leave = carry forward + 2 for the current month
-
-    // Reset casual leave to 2 for the current month
-    userLeave.casualLeave = 2; // Reset casual leave to 2
-
-    // Save the updated leave balance and history
     await userLeave.save();
+
     return res.status(200).json({
       message: "Leave balance updated with carry forward and reset",
-      updatedSickLeaveBalance: userLeave.sickLeave,
-
-      resetCasualLeaveBalance: userLeave.casualLeave,
+      updatedSickLeaveBalance: userLeave.sickLeaveAvailable,
+      resetCasualLeaveBalance: userLeave.casualLeaveAvailable,
     });
   } catch (error) {
     console.error("Error in simulateCarryForward:", error);
-    return res
-      .status(500)
-      .json({ message: "Server error", error: error.message });
+    return res.status(500).json({ message: "Server error", error: error.message });
+  }
+};
+
+export const getAllLeaveRequestsAuditor = async (req, res) => {
+  try {
+    let {
+      page = 1,
+      pageSize = 10,
+      sort,
+      fromDate,
+      toDate,
+      leaveStatus,
+      keyword,
+      auditorId,
+    } = req.query;
+
+    if (!auditorId) {
+      return res.status(400).json({ message: "Auditor ID is required" });
+    }
+
+    if (!mongoose.Types.ObjectId.isValid(auditorId)) {
+      return res.status(400).json({ message: "Invalid auditor ID" });
+    }
+
+    const pageNumber = parseInt(page, 10);
+    const sizePerPage = parseInt(pageSize, 10);
+
+    if (
+      isNaN(pageNumber) ||
+      pageNumber < 1 ||
+      isNaN(sizePerPage) ||
+      sizePerPage < 1
+    ) {
+      return res
+        .status(400)
+        .json({ message: "Invalid page or pageSize parameter" });
+    }
+
+    let query = {
+      workType: "leave",
+      userId: auditorId, // Only get leaves for the specified auditor
+    };
+
+    if (leaveStatus) {
+      query.leaveStatus = leaveStatus;
+    }
+
+    // Date filters
+    if (fromDate && !toDate) {
+      query.fromDate = {
+        $gte: moment(fromDate, "YYYY-MM-DD").startOf("day").toDate(),
+        $lte: moment(fromDate, "YYYY-MM-DD").endOf("day").toDate(),
+      };
+    } else if (fromDate && toDate) {
+      query.fromDate = {
+        $gte: moment(fromDate, "YYYY-MM-DD").startOf("day").toDate(),
+        $lte: moment(toDate, "YYYY-MM-DD").endOf("day").toDate(),
+      };
+    } else {
+      query.createdAt = {
+        $gte: moment().subtract(7, "days").startOf("day").toDate(),
+        $lte: moment().endOf("day").toDate(),
+      };
+    }
+
+    let sortQuery = { createdAt: -1 };
+    if (sort === "newproposal") {
+      sortQuery = { createdAt: 1 };
+    }
+
+    // Base query
+    let baseQuery = WorkLog.find(query)
+      .sort(sortQuery)
+      .skip((pageNumber - 1) * sizePerPage)
+      .limit(sizePerPage)
+      .populate("userId", "userName")
+      .select(
+        "userId leaveType reason startTime endTime fromDate toDate isLOP leaveStatus createdAt"
+      );
+
+    // Apply keyword filtering after population
+    let leaveRequests = await baseQuery;
+
+    // Keyword search after fetching
+    if (keyword) {
+      const searchRegex = new RegExp(keyword, "i");
+      leaveRequests = leaveRequests.filter((log) => {
+        return (
+          searchRegex.test(log.leaveType) ||
+          searchRegex.test(log.reason) ||
+          searchRegex.test(log?.userId?.userName || "")
+        );
+      });
+    }
+
+    // Count total (with/without keyword)
+    const totalLeaveRequests = keyword
+      ? leaveRequests.length
+      : await WorkLog.countDocuments(query);
+
+    res.status(200).json({
+      data: leaveRequests.map((log) => ({
+        ...log.toObject(),
+        requester_name: log.userId?.userName || "N/A",
+        userId: log.userId._id,
+        startTime: log.startTime
+          ? moment(log.startTime).format("HH:mm A")
+          : "N/A",
+        endTime: log.endTime ? moment(log.endTime).format("HH:mm A") : "N/A",
+        fromDate: log.fromDate
+          ? moment(log.fromDate).format("DD-MM-YYYY")
+          : "N/A",
+        toDate: log.toDate ? moment(log.toDate).format("DD-MM-YYYY") : "N/A",
+        requestDate: moment(log.createdAt).format("DD-MM-YYYY"),
+        requestDateAndTime: moment(log.createdAt).format("DD-MM-YYYY HH:mm A"),
+        leaveType: log.leaveType,
+        reason: log.reason,
+        isLOP: log.isLOP,
+        leaveStatus: log.leaveStatus,
+      })),
+      total: totalLeaveRequests,
+      page: pageNumber,
+      pageSize: sizePerPage,
+      totalPages: Math.ceil(totalLeaveRequests / sizePerPage),
+      fromDate: fromDate || moment().subtract(7, "days").format("YYYY-MM-DD"),
+      toDate: toDate || moment().format("YYYY-MM-DD"),
+    });
+  } catch (error) {
+    console.error("Error fetching leave requests:", error);
+    res.status(500).json({ message: "Server error" });
+  }
+};
+
+
+export const runCarryForwardForAllUsers = async () => {
+  try {
+    const allUsers = await LeaveBalance.find({});
+
+    for (const userLeave of allUsers) {
+      // Skip if already used next month's sick leave
+      if (!userLeave.sickTakenNextMonth) {
+        userLeave.sickLeaveAvailable += 1;
+      }
+
+      // Reset casual leave (no carry forward)
+      userLeave.casualLeaveAvailable = 1;
+
+      // Reset flags
+      userLeave.sickTakenNextMonth = false;
+      userLeave.casualTakenNextMonth = false;
+
+      // Reset monthly usage
+      userLeave.sickLeaveTotalMonth = 0;
+      userLeave.casualLeaveTotalMonth = 0;
+
+      await userLeave.save();
+    }
+
+    console.log("✔️ Monthly leave carry forward completed.");
+  } catch (error) {
+    console.error("❌ Error in carry forward process:", error.message);
+  }
+};
+
+export const resetFinancialYearLeave = async () => {
+  try {
+    const allUsers = await LeaveBalance.find({});
+
+    for (const userLeave of allUsers) {
+      userLeave.sickLeaveAvailable = 1;
+      userLeave.casualLeaveAvailable = 1;
+
+      // Optional: Reset usage counters
+      userLeave.sickLeaveTotalMonth = 0;
+      userLeave.sickLeaveOverall = 0;
+      userLeave.casualLeaveTotalMonth = 0;
+      userLeave.casualLeaveOverall = 0;
+
+      // Optional: Reset flags
+      userLeave.sickTakenNextMonth = false;
+      userLeave.casualTakenNextMonth = false;
+
+      await userLeave.save();
+    }
+
+    console.log('✅ Leave reset for financial year completed.');
+  } catch (error) {
+    console.error('❌ Error resetting leave balances:', error.message);
   }
 };

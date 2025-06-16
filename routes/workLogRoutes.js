@@ -14,7 +14,8 @@ import {
   approveLeaveRequest,
   calculateLeaveData,
   checkLeaveBalanceLeftOrNot,
-  simulateCarryForward
+  simulateCarryForward,
+  getAllLeaveRequestsAuditor,
 } from "../controller/workLogController.js";
 
 const router = express.Router();
@@ -43,6 +44,8 @@ router.get("/fetchWorkLogDates/:userId", fetchWorkLogDates);
 router.post("/submitLeaveRequest", submitLeaveRequest);
 
 router.get("/getAllLeaveRequests", getAllLeaveRequests);
+
+router.get("/getAllLeaveRequestsAuditor", getAllLeaveRequestsAuditor);
 
 router.put("/approveLeaveRequest/:id", approveLeaveRequest);
 

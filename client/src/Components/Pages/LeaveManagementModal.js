@@ -31,6 +31,9 @@ const LeaveManagementModal = ({ visible, onClose, userId, workLogId ,onLeaveUpda
     }
   };
 
+
+  
+
   const handleApprove = () => {
     if (!workLogId) {
       message.error("Invalid Work Log ID.");
@@ -65,8 +68,20 @@ const LeaveManagementModal = ({ visible, onClose, userId, workLogId ,onLeaveUpda
 
   const nonLOPColumns = [
     { title: "Leave Type", dataIndex: "type", key: "type" },
-    { title: "This Month(Available)", dataIndex: "thisMonth", key: "thisMonth" },
-    { title: "Overall(Available)", dataIndex: "overall", key: "overall" },
+    ...(leaveData?.totalLeavesTaken?.status !== "approved" ? [
+      { 
+        title: "This Month(taken)", 
+        dataIndex: "thisMonth", 
+        key: "thisMonth",
+        render: (text) => text > 0 ? <span>+{text}</span> : text
+      }
+    ] : []),
+    { 
+      title: "Overall(Available)", 
+      dataIndex: "overall", 
+      key: "overall",
+      render: (text) => text > 0 ? <span>+{text}</span> : text
+    },
   ];
 
   const totalLeavesColumns =

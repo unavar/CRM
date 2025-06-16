@@ -616,9 +616,16 @@ export const updateStatusHistoryByAuditId = async (req, res) => {
   try {
     // Validate the status field
     if (
-      !["assigned", "draft", "modified", "submitted", "approved"].includes(
-        status
-      )
+      ![
+        "assigned",
+        "draft",
+        "modified",
+        "submitted",
+        "approved",
+        "Physical Audit Completed",
+        "Documentation Work On",
+        "FSSAI Portal Updated"
+      ].includes(status)
     ) {
       return res.status(400).json({ message: "Invalid status provided" });
     }

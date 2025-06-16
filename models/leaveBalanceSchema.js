@@ -23,18 +23,18 @@ const leaveBalanceSchema = new mongoose.Schema(
       type: Number,
       default: 2, // Available sick leave balance
     },
-     
+
     casualLeaveAvailable: {
       type: Number,
       default: 2, // Available casual leave balance
     },
-   
+
     sickLeaveTotalMonth: {
       type: Number,
       default: 0, // Cumulative total of sick leave taken
     },
 
-    sickLeaveOverall:{
+    sickLeaveOverall: {
       type: Number,
       default: 0, // Overall sick leave taken
     },
@@ -43,10 +43,13 @@ const leaveBalanceSchema = new mongoose.Schema(
       type: Number,
       default: 0, // Cumulative total of casual leave taken
     },
-    casualLeaveOverall:{
+    casualLeaveOverall: {
       type: Number,
       default: 0, // Overall casual leave taken
     },
+    sickTakenNextMonth: { type: Boolean, default: false },
+    casualTakenNextMonth: { type: Boolean, default: false },
+
     lastMonthlyReset: { type: Date, default: null },
     lastFinancialYearReset: { type: Date, default: null },
   },

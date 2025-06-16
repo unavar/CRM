@@ -258,7 +258,7 @@ function AuditReport() {
               type="primary"
               onClick={() => toggleEditing(sectionIndex)}
               disabled={
-                !["draft", "rejected"].includes(firstSegment) ||
+                !["draft", "modified"].includes(firstSegment) ||
                 isEditing[sectionIndex]
               }
             >

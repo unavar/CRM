@@ -31,8 +31,6 @@ import { ExclamationCircleFilled } from "@ant-design/icons";
 import PaymentModal from "../Layout/PaymentModal";
 import { useAuth } from "../Context/AuthContext";
 import PaymentConfirmationModal from "../Layout/PaymentConfirmationModal";
-import { title } from "process";
-import PaymentRecordModal from "../Layout/PaymentReocrdModal";
 
 const { confirm } = Modal;
 
@@ -52,7 +50,7 @@ const debounce = (func, delay) => {
 // Define your debounce delay (e.g., 300ms)
 const debounceDelay = 300;
 
-const PaymentRequestTable = () => {
+const PaymentRequestAuditor = () => {
   const [flattenedTableData, setFlattenedTableData] = useState([]);
   const [sortData, setSortData] = useState("alllist");
   const [selectionType, setSelectionType] = useState("checkbox");
@@ -65,7 +63,7 @@ const PaymentRequestTable = () => {
     },
   });
   const [isPaymentModalVisible, setIsPaymentModalVisible] = useState(false);
-
+  const [isModalVisibleInvoice, setIsModalVisibleInvoice] = useState(false);
   const [selectedRowKeys, setSelectedRowKeys] = useState([]);
   const [isModalVisible, setIsModalVisible] = useState(false);
 
@@ -75,8 +73,10 @@ const PaymentRequestTable = () => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [proposalId, setProposalId] = useState(null);
   const [showSendMailModal, setShowSendMailModal] = useState(false);
-  const [auditorPaymentId, setAuditorPaymentId] = useState(null);
-  const [balanceAmount,setBalanceAmount] = useState(null);
+  const [auditorPaynmentId, setAuditorPaymentId] = useState(null);
+  const [UpdateProposal, setUpdateProposal] = useState(false);
+  const [selectedStatus, setSelectedStatus] = useState();
+  const { user } = useAuth();
 
   const navigate = useNavigate();
 
@@ -88,6 +88,8 @@ const PaymentRequestTable = () => {
 
   const showModalInvoice = (proposalId) => {
     console.log(proposalId);
+    setProposalId(proposalId);
+    setIsModalVisibleInvoice(true);
   };
 
   const showModalAgreement = (proposalId) => {
@@ -106,20 +108,38 @@ const PaymentRequestTable = () => {
     setProposalId(null);
   };
 
+  const showUpdateProposal = (proposalId) => {
+    setProposalId(proposalId);
+    setUpdateProposal(true);
+  };
 
+  const handleUpdatePropsoalCancel = () => {
+    fetchData();
+    setUpdateProposal(false);
+    setProposalId(null);
+  };
+
+  const handleRecordPayment = (proposal_id, auditorPaymentId) => {
+    console.log("this is auditor payment id", auditorPaymentId);
+    setAuditorPaymentId(auditorPaymentId);
+    setProposalId(proposal_id);
+    setIsPaymentModalVisible(true);
+  };
 
   // Fetch data function
-  const fetchData = useCallback(() => {
+  const fetchData = useCallback((status = selectedStatus) => {
     setLoading(true);
-    const url = `/api/payment/getAllProposalDetailsWithPayment`;
-
+    const url = `/api/payment/getAllProposalDetailsAuditor`;
+  
     axios
       .get(url, {
         params: {
           page: tableParams.pagination.current,
           pageSize: tableParams.pagination.pageSize,
-          sort: sortData, // No need for template literal `${sortData}`
+          sort: sortData,
           keyword: searchKeyword,
+          status: status,
+          auditorId: user?._id, // Pass auditorId from AuthContext
         },
       })
       .then((response) => {
@@ -128,13 +148,9 @@ const PaymentRequestTable = () => {
 
         const flattenedData = responseData.map((row, index) => ({
           ...row,
-          key: `${row._id}-${index}`, // Combine _id with index for a unique key
+          key: `${row._id}-${index}`,
         }));
         setFlattenedTableData(flattenedData);
-
-        console.log("Flattened Data:", flattenedData[0].balanceAmount);
-
-        setBalanceAmount(flattenedData[0].balanceAmount);
 
         setTableParams((prevState) => ({
           ...prevState,
@@ -157,11 +173,18 @@ const PaymentRequestTable = () => {
     sortData,
     searchKeyword,
   ]);
-
+  
+ 
+  
   // Fetch initial data on component mount
   useEffect(() => {
     fetchData();
   }, [fetchData]);
+
+  const handleFilterChange = (value) => {
+    setSelectedStatus(value);
+    fetchData(value); // ✅ Pass the value directly to fetchData
+  };
 
   // Pagination
   const handleTableChange = (pagination, filters, sorter) => {
@@ -267,7 +290,59 @@ const PaymentRequestTable = () => {
     });
   };
 
+  // Handle Menu
+  const handleMenuClick = (record, { key }) => {
+    switch (key) {
+      case "generate_agreement":
+        showModalAgreement(record._id);
+        break;
+
+      case "send_mail":
+        showSendMail(record._id);
+        break;
+
+      case "generate_invoice":
+        showModalInvoice(record._id);
+        break;
+
+      case "delete":
+        showSingleDeleteConfirm(record.auditor_paymentId);
+        break;
+
+      case "view":
+        navigate(`/proposal/view-proposal/${record._id}`);
+        break;
+
+      default:
+        break;
+    }
+  };
+
+  const menu = (record) => (
+    <Menu
+      onClick={(e) => handleMenuClick(record, e)}
+      style={{ padding: "8px" }}
+    >
+      <Menu.Item
+        key="delete"
+        style={{ margin: "8px 0", backgroundColor: "#FFCDD2" }}
+      >
+        <span
+          style={{ color: "#B71C1C", fontWeight: "bold", fontSize: "12px" }}
+        >
+          <DeleteOutlined /> Delete
+        </span>
+      </Menu.Item>
+    </Menu>
+  );
+
   const columns = [
+    // {
+    //   title: "Auditor Name",
+    //   dataIndex: "auditor_name",
+    //   key: "auditor_name",
+    // },
+
     {
       title: "Proposal Number",
       dataIndex: "proposal_number",
@@ -278,42 +353,78 @@ const PaymentRequestTable = () => {
       dataIndex: "fbo_name",
       key: "fbo_name",
     },
-    {
-      title: "NO. of Payments",
-      dataIndex: "noOfPayments",
-      key: "noOfPayments",
-      render: (text, record) => (
-        <span
-          style={{ color: "#1677ff", cursor: "pointer" }}
-          onClick={() => handleProposalNumberClick(record)}
-        >
-          {text}
-        </span>
-      ),
-    },
-
+  
     {
       title: "Proposal Value",
       dataIndex: "Proposal_value",
       key: "Proposal_value",
     },
     {
-      title: "Payment Received",
+      title: "Total Payment Received",
       dataIndex: "paymentReceived",
       key: "paymentReceived",
     },
     {
-      title: "Balance Amount",
-      dataIndex: "balanceAmount",
-      key: "balanceAmount",
+      title: "Amount to verify",
+      dataIndex: "amounToVerify",
+      key: "amountToVerify",
     },
-  ];
+    {
+      title: "Status",
+      dataIndex: "status",
+      key: "status",
+      render: (status) => {
+        let color;
+        switch (status) {
+          case "accepted":
+            color = "green";
+            break;
+          case "rejected":
+            color = "red";
+            break;
+          case "pending":
+            color = "orange";
+            break;
+          default:
+            color = "gray";
+        }
+        return <Tag color={color}>{status.toUpperCase()}</Tag>;
+      },
+    },
+    {
+      title: "view",
+      key: "verify_payment",
+      render: (_, record) => (
+        <Button
+          className={
+          
+             "bg-blue-500 text-white hover:bg-blue-600"
+          }
+          onClick={() =>
+            handleRecordPayment(record._id, record.auditor_paymentId)
+          }
+        >
+          view
+        </Button>
+      ),
+    },
 
-  // Add this function above your return or wherever appropriate
-  const handleProposalNumberClick = (record) => {
-    setAuditorPaymentId(record._id);
-    setIsModalVisible(true);
-  };
+    // {
+    //   title: "Action",
+    //   key: "action",
+    //   render: (_, record) => (
+    //     <Dropdown
+    //       overlay={menu(record)}
+    //       trigger={["click"]}
+    //       placement="bottomLeft"
+    //       arrow
+    //       danger
+    //     >
+    //       <Button type="link" icon={<MoreOutlined />} />
+    //     </Dropdown>
+    //   ),
+    // },
+  ];
 
   // Fetch data when shouldFetch changes
   useEffect(() => {
@@ -362,21 +473,38 @@ const PaymentRequestTable = () => {
     <AdminDashboard>
       <div className="bg-blue-50 m-6">
         <div className="flex justify-between items-center mb-4">
-          <h2 className="text-xl font-semibold">
-            Proposal Table With the Payment Received
-          </h2>
+          <h2 className="text-xl font-semibold">Payment Requests</h2>
           <div className="space-x-2">
-            <Space wrap></Space>
-            {/* <Button shape="round" icon={<FilterOutlined />} size="default">
-              Filters
-            </Button>
-            <Button
-              shape="round"
-              icon={<CloudDownloadOutlined />}
-              size="default"
-            >
-              Export
-            </Button> */}
+            <Space wrap>
+              <>
+                <div>
+                  <h2 className="text-xl font-semibold">Filters</h2>
+                </div>
+                <div className="ml-5">
+                  {/* Status Multi-Select */}
+                  <Select
+                    mode="multiple"
+                    placeholder="Select Status"
+                    options={[
+                      { value: "pending", label: "Pending" },
+                      { value: "accepted", label: "Accepted" },
+                      { value: "rejected", label: "Rejected" },
+                    ]}
+                    value={selectedStatus}
+                    onChange={handleFilterChange}
+                    style={{ width: 300 }}
+                  />
+                </div>
+              </>
+              <Button
+                onClick={showDeleteConfirm}
+                icon={<DeleteOutlined />}
+                disabled={selectedRowKeys.length === 0}
+                shape="round"
+              >
+                Delete
+              </Button>
+            </Space>
           </div>
         </div>
 
@@ -422,20 +550,20 @@ const PaymentRequestTable = () => {
                   fontWeight: sortData === "alllist" ? "normal" : "500",
                 }}
               >
-                New Proposal
+                New Requests
               </Radio.Button>
             </Radio.Group>
           </ConfigProvider>
 
           <div className="space-x-2">
-            <Input
+            {/* <Input
               size="default"
               placeholder="Search by FBO Name"
               prefix={<SearchOutlined />}
               value={searchKeyword}
               onChange={handleInputChange}
               style={{ width: 300 }}
-            />
+            /> */}
           </div>
         </div>
 
@@ -456,6 +584,10 @@ const PaymentRequestTable = () => {
             }}
           >
             <Table
+              rowSelection={{
+                type: selectionType,
+                ...rowSelection,
+              }}
               columns={columns}
               dataSource={flattenedTableData}
               rowKey={(record) => record.key}
@@ -466,15 +598,15 @@ const PaymentRequestTable = () => {
           </ConfigProvider>
         </div>
       </div>
-
-      <PaymentRecordModal
-        visible={isModalVisible}
-        proposalId={auditorPaymentId}
-        onClose={() => setIsModalVisible(false)}
-        balanceAmount={balanceAmount}
+      <PaymentConfirmationModal
+        visible={isPaymentModalVisible}
+        proposalId={proposalId}
+        auditorPaymentId={auditorPaynmentId}
+        handleCancel={handleCancelPayment}
+        viewOnly={true}
       />
     </AdminDashboard>
   );
 };
 
-export default PaymentRequestTable;
+export default PaymentRequestAuditor;

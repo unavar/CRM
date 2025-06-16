@@ -20,6 +20,7 @@ const PaymentConfirmationModal = ({
   handleCancel,
   proposalId,
   auditorPaymentId,
+  viewOnly
 }) => {
   const [form] = Form.useForm();
   const { user } = useAuth();
@@ -165,22 +166,24 @@ const domain =
       footer={null}
     >
       <Spin spinning={loading}>
-        <div className="flex justify-end space-x-2">
-          {isEditing ? (
-            <Button type="primary" onClick={handleSubmit}>
-              Save
-            </Button>
-          ) : (
-            <Button type="default" onClick={() => setIsEditing(true)}>
-              Edit
-            </Button>
-          )}
-          {isEditing && (
-            <Button type="default" onClick={() => setIsEditing(false)}>
-              Cancel
-            </Button>
-          )}
-        </div>
+        {!viewOnly && (
+          <div className="flex justify-end space-x-2">
+            {isEditing ? (
+              <Button type="primary" onClick={handleSubmit}>
+                Save
+              </Button>
+            ) : (
+              <Button type="default" onClick={() => setIsEditing(true)}>
+                Edit
+              </Button>
+            )}
+            {isEditing && (
+              <Button type="default" onClick={() => setIsEditing(false)}>
+                Cancel
+              </Button>
+            )}
+          </div>
+        )}
 
         <Form form={form} layout="vertical" name="paymentConfirmationForm">
           <Form.Item name="auditor_name" label="Auditor Name">
@@ -207,7 +210,7 @@ const domain =
               onPreview={handlePreview}
               readOnly={!isEditing}
             >
-              {isEditing && <Button icon={<UploadOutlined />}>Upload</Button>}
+              {isEditing && !viewOnly && <Button icon={<UploadOutlined />}>Upload</Button>}
             </Upload>
           </Form.Item>
           <Modal
@@ -226,18 +229,20 @@ const domain =
         </Form>
 
         {/* Accept & Reject Buttons */}
-        <div className="flex justify-between mt-4">
-          <Button
-            type="primary"
-            danger
-            onClick={() => handleConfirm("rejected")}
-          >
-            Reject
-          </Button>
-          <Button type="primary" onClick={() => handleConfirm("accepted")}>
-            Accept
-          </Button>
-        </div>
+        {!viewOnly && (
+          <div className="flex justify-between mt-4">
+            <Button
+              type="primary"
+              danger
+              onClick={() => handleConfirm("rejected")}
+            >
+              Reject
+            </Button>
+            <Button type="primary" onClick={() => handleConfirm("accepted")}>
+              Accept
+            </Button>
+          </div>
+        )}
       </Spin>
     </Modal>
   );

@@ -12,13 +12,9 @@ import agreementRoutes from "./routes/agreementRoutes.js";
 import auditorRoutes from "./routes/auditorRoutes.js";
 import settingRoutes from "./routes/settingRoutes.js";
 import workLogRoutes from "./routes/workLogRoutes.js";
-import { v2 as cloudinary } from "cloudinary";
-
-cloudinary.config({
-  cloud_name: process.env.CLOUD_NAME,
-  api_key: process.env.API_KEY,
-  api_secret: process.env.API_SECRET,
-});
+import summaryRoutes from "./routes/summaryRoutes.js";
+import cron from 'node-cron';
+import {runCarryForwardForAllUsers,resetFinancialYearLeave} from "./controller/workLogController.js";
 
 import path from "path";
 import { fileURLToPath } from "url";
@@ -26,6 +22,16 @@ import paymentRoutes from "./routes/paymentRoutes.js";
 
 // Configure environment variables
 dotenv.config();
+
+cron.schedule('1 0 1 * *', async () => {
+  console.log('⏰ Running monthly carry forward...');
+  await runCarryForwardForAllUsers();
+});
+
+cron.schedule('1 0 1 4 *', async () => {
+  console.log('📅 Yearly financial leave reset running...');
+  await resetFinancialYearLeave();
+});
 
 // Create Express app
 const app = express();
@@ -60,6 +66,7 @@ app.use("/api/auditor", auditorRoutes);
 app.use("/api/setting", settingRoutes);
 app.use("/api/worklogs", workLogRoutes);
 app.use("/api/payment", paymentRoutes);
+app.use("/api/summary", summaryRoutes);
 
 // All other routes (non-API routes) go to React app
 app.use("*", function (req, res) {

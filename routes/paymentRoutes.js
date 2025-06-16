@@ -12,7 +12,8 @@ import {
   getAllProposalDetailsAdmin,
   deleteFields,
   updateAuditorPayment,
-  getAllProposalDetailsWithPayment
+  getAllProposalDetailsWithPayment,
+  getNoOfPayment,getAllProposalDetailsAuditor
 } from "../controller/paymentController.js";
 import multer from "multer";
 
@@ -56,5 +57,9 @@ router.put("/updatePaymentStatus/:id", updateAuditorPaymentStatus);
 router.delete("/deleteFields", deleteFields);
 
 router.put("/updateAuditorPayment", upload.single("referenceDocument"),  updateAuditorPayment);
+
+router.get("/getNoOfPayment/:proposalId",getNoOfPayment);
+
+router.get("/getAllProposalDetailsAuditor", getAllProposalDetailsAuditor);
 
 export default router;

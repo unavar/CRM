@@ -33,6 +33,7 @@ import PaymentModal from "../Layout/PaymentModal";
 import { useAuth } from "../Context/AuthContext";
 import PaymentConfirmationModal from "../Layout/PaymentConfirmationModal";
 import LeaveManagementModal from "./LeaveManagementModal";
+import LeaveRequestForm from "./LeaveRequestForm";
 
 const { confirm } = Modal;
 
@@ -79,8 +80,11 @@ const LeaveRequestTable = () => {
   const [UpdateProposal, setUpdateProposal] = useState(false);
   const [userId, setUserId] = useState(null);
   const [workLogId, setWorkLogId] = useState(null);
-  const { user } = useAuth();
+  const [isLeaveFormVisible, setIsLeaveFormVisible] = useState(false);
+  const [fromDate,setFromDate]=useState("");
+  const [toDate,setToDate]=useState("");
 
+  const { user } = useAuth();
 
   const navigate = useNavigate();
 
@@ -91,11 +95,10 @@ const LeaveRequestTable = () => {
   };
 
   const showLeaveManagementModal = (record) => {
-  
-
-    console.log("Record:", record); // Log the record to see its structure
+    setFromDate(record.fromDate);
+    setToDate(record.toDate);
     setWorkLogId(record._id); // Set the workLogId from the record
-   
+
     setUserId(record.userId); // Set the userId from the record
     setisLeaveManagement(true);
   };
@@ -150,18 +153,18 @@ const LeaveRequestTable = () => {
         params: {
           page: tableParams.pagination.current,
           pageSize: tableParams.pagination.pageSize,
-          sort: sortData, // No need for template literal `${sortData}`
+          sort: sortData,
           keyword: searchKeyword,
         },
       })
       .then((response) => {
-        console.log("Response:", response); // Log the response to see its structure
+        console.log("Response:", response);
         const { data } = response;
-        const { data: responseData, total, currentPage } = data;
+        const { data: responseData, total } = data;
 
         const flattenedData = responseData.map((row, index) => ({
           ...row,
-          key: `${row._id}-${index}`, // Combine _id with index for a unique key
+          key: `${row._id}-${index}`,
         }));
         setFlattenedTableData(flattenedData);
 
@@ -170,7 +173,6 @@ const LeaveRequestTable = () => {
           pagination: {
             ...prevState.pagination,
             total: total,
-            current: currentPage,
           },
         }));
 
@@ -199,9 +201,6 @@ const LeaveRequestTable = () => {
       filters,
       ...sorter,
     });
-    if (pagination.pageSize !== tableParams.pagination.pageSize) {
-      setFlattenedTableData([]);
-    }
   };
 
   // Row Selection
@@ -302,12 +301,11 @@ const LeaveRequestTable = () => {
       case "View Leave":
         showLeaveManagementModal(record);
         break;
-  
+
       default:
         break;
     }
   };
-
 
   const menu = (record) => (
     <Menu
@@ -352,13 +350,31 @@ const LeaveRequestTable = () => {
       title: "Start Date",
       dataIndex: "fromDate",
       key: "fromDate",
-      render: (fromDate) => fromDate || "N/A",
+      render: (fromDate) => {
+        if (!fromDate) return "N/A";
+        const [day, month, year] = fromDate.split("-");
+        const date = new Date(year, month - 1, day);
+        return date.toLocaleDateString("en-US", {
+          day: "numeric",
+          month: "short",
+          year: "numeric",
+        });
+      },
     },
     {
       title: "End Date",
       dataIndex: "toDate",
       key: "toDate",
-      render: (toDate) => toDate || "N/A",
+      render: (toDate) => {
+        if (!toDate) return "N/A";
+        const [day, month, year] = toDate.split("-");
+        const date = new Date(year, month - 1, day);
+        return date.toLocaleDateString("en-US", {
+          day: "numeric",
+          month: "short",
+          year: "numeric",
+        });
+      },
     },
     {
       title: "Total Days",
@@ -368,10 +384,10 @@ const LeaveRequestTable = () => {
         const [tDay, tMonth, tYear] = record.toDate.split("-").map(Number);
         const fromDate = new Date(fYear, fMonth - 1, fDay);
         const toDate = new Date(tYear, tMonth - 1, tDay);
-    
+
         const diffTime = Math.abs(toDate - fromDate);
         const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1;
-    
+
         return diffDays;
       },
     },
@@ -522,13 +538,19 @@ const LeaveRequestTable = () => {
               >
                 New Request
               </Radio.Button>
+              {/* <Button
+                type="primary"
+                onClick={() => setIsLeaveFormVisible(true)}
+              >
+                Request Leave
+              </Button> */}
             </Radio.Group>
           </ConfigProvider>
 
           <div className="space-x-2">
             <Input
               size="default"
-              placeholder="Search by FBO Name"
+              placeholder="Search by Auditor Name"
               prefix={<SearchOutlined />}
               value={searchKeyword}
               onChange={handleInputChange}
@@ -565,13 +587,19 @@ const LeaveRequestTable = () => {
         </div>
       </div>
 
-    
       <LeaveManagementModal
         visible={isLeaveManagement}
         onClose={handleCancel}
-       workLogId={workLogId}
+        workLogId={workLogId}
         userId={userId}
-        onLeaveUpdated={() => setShouldFetch(true)} // Callback to refresh data after modal actions
+        onLeaveUpdated={() => setShouldFetch(true)}
+        fromDate={fromDate}
+        toDate={toDate}
+      />
+      <LeaveRequestForm
+        visible={isLeaveFormVisible}
+        onClose={() => setIsLeaveFormVisible(false)}
+        auditorId={user._id}
       />
     </AdminDashboard>
   );

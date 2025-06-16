@@ -150,7 +150,7 @@ const UpdateFssaiForm = () => {
         <Button
           type="primary"
           onClick={() => setIsEditable(!isEditable)} // Toggle edit mode
-          disabled={!["draft", "rejected"].includes(firstSegment) || isEditable}
+          disabled={!["draft", "modified"].includes(firstSegment) || isEditable}
         >
           {isEditable ? "Cancel" : "Edit"}
         </Button>

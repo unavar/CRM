@@ -3,11 +3,12 @@ import { Modal, Select, Button, Spin, message, Steps, DatePicker, Typography, Fo
 import axios from "axios";
 import { useParams, useNavigate } from "react-router-dom";
 import dayjs from "dayjs";
+import tost from "react-hot-toast"; // Assuming you are using react-hot-toast for notifications
 
 const { Option } = Select;
 const { Step } = Steps;
 
-const CurrentStepModal = ({ visible, onClose }) => {
+const CurrentStepModal = ({ visible, onClose, reload }) => {
   const statusOptions = [
     "Not Started",
     "Physical Audit Completed",
@@ -63,11 +64,19 @@ const CurrentStepModal = ({ visible, onClose }) => {
         physical_date: auditDate ? auditDate.toDate() : null,
       };
 
-      console.log("Sending data:", updateData);
+    if(selectedStatus==="Not Started"){
+      tost.error("Please select a valid status.");
+      setLoading(false);
+      return;
+    }
 
       await axios.put("/api/auditor/updateStepsStatus", updateData);
+       await axios.put(`/api/auditor/updateStatusHistoryByAuditId/${audit_id}`, { status: selectedStatus });
       message.success("Updated successfully.");
       setIsUpdated(true);
+      if (typeof reload === "function") {
+        reload();
+      }
     } catch (error) {
       console.error("Update error:", error);
       message.error("Update failed.");
@@ -80,7 +89,8 @@ const CurrentStepModal = ({ visible, onClose }) => {
     try {
       await form.validateFields(); // Validate all fields before submitting
       setSubmitLoading(true);
-      await axios.put(`/api/auditor/updateStatusHistoryByAuditId/${audit_id}`, { status: "submitted" });
+      
+      await axios.put(`/api/auditor/updateStatusHistoryByAuditId/${audit_id}`, { status: selectedStatus });
       message.success("Submitted successfully!");
       navigate("/submittedForApproval");
     } catch (error) {
@@ -110,7 +120,11 @@ const CurrentStepModal = ({ visible, onClose }) => {
 
           <Steps current={statusOptions.indexOf(selectedStatus)} size="small">
             {statusOptions.map((status, index) => (
-              <Step key={index} title={status} />
+              <Step 
+                key={index} 
+                title={status}
+                disabled={index < statusOptions.indexOf(selectedStatus)}
+              />
             ))}
           </Steps>
 
@@ -148,6 +162,7 @@ const CurrentStepModal = ({ visible, onClose }) => {
                 }}
                 format="DD/MM/YYYY"
                 placeholder="Select Audit Date"
+                disabledDate={current => current && current > dayjs().endOf('day')}
               />
             </Form.Item>
           </Form>

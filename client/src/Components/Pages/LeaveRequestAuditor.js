@@ -13,6 +13,7 @@ import {
   ConfigProvider,
   Select,
   message,
+  Badge,
 } from "antd";
 import {
   DeleteOutlined,
@@ -31,8 +32,9 @@ import { ExclamationCircleFilled } from "@ant-design/icons";
 import PaymentModal from "../Layout/PaymentModal";
 import { useAuth } from "../Context/AuthContext";
 import PaymentConfirmationModal from "../Layout/PaymentConfirmationModal";
-import { title } from "process";
-import PaymentRecordModal from "../Layout/PaymentReocrdModal";
+import LeaveManagementModal from "./LeaveManagementModal";
+import LeaveRequestForm from "./LeaveRequestForm";
+
 
 const { confirm } = Modal;
 
@@ -52,7 +54,7 @@ const debounce = (func, delay) => {
 // Define your debounce delay (e.g., 300ms)
 const debounceDelay = 300;
 
-const PaymentRequestTable = () => {
+const LeaveRequestTable = () => {
   const [flattenedTableData, setFlattenedTableData] = useState([]);
   const [sortData, setSortData] = useState("alllist");
   const [selectionType, setSelectionType] = useState("checkbox");
@@ -64,8 +66,8 @@ const PaymentRequestTable = () => {
       total: 0,
     },
   });
-  const [isPaymentModalVisible, setIsPaymentModalVisible] = useState(false);
-
+  const [isLeaveManagement, setisLeaveManagement] = useState(false);
+  const [isModalVisibleInvoice, setIsModalVisibleInvoice] = useState(false);
   const [selectedRowKeys, setSelectedRowKeys] = useState([]);
   const [isModalVisible, setIsModalVisible] = useState(false);
 
@@ -75,19 +77,33 @@ const PaymentRequestTable = () => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [proposalId, setProposalId] = useState(null);
   const [showSendMailModal, setShowSendMailModal] = useState(false);
-  const [auditorPaymentId, setAuditorPaymentId] = useState(null);
-  const [balanceAmount,setBalanceAmount] = useState(null);
+  const [auditorPaynmentId, setAuditorPaymentId] = useState(null);
+  const [UpdateProposal, setUpdateProposal] = useState(false);
+  const [userId, setUserId] = useState(null);
+  const [workLogId, setWorkLogId] = useState(null);
+  const [isLeaveFormVisible, setIsLeaveFormVisible] = useState(false);
+  const { user } = useAuth();
 
   const navigate = useNavigate();
 
   // Toggling
 
-  const handleCancelPayment = () => {
-    setIsPaymentModalVisible(false);
+  const handleCancel = () => {
+    setisLeaveManagement(false);
+  };
+
+  const showLeaveManagementModal = (record) => {
+    console.log("Record:", record); // Log the record to see its structure
+    setWorkLogId(record._id); // Set the workLogId from the record
+
+    setUserId(record.userId); // Set the userId from the record
+    setisLeaveManagement(true);
   };
 
   const showModalInvoice = (proposalId) => {
     console.log(proposalId);
+    setProposalId(proposalId);
+    setIsModalVisibleInvoice(true);
   };
 
   const showModalAgreement = (proposalId) => {
@@ -107,11 +123,33 @@ const PaymentRequestTable = () => {
   };
 
 
+  const handleSuccess=()=>{
+    fetchData();
+  }
+  
+
+  const showUpdateProposal = (proposalId) => {
+    setProposalId(proposalId);
+    setUpdateProposal(true);
+  };
+
+  const handleUpdatePropsoalCancel = () => {
+    fetchData();
+    setUpdateProposal(false);
+    setProposalId(null);
+  };
+
+  const handleRecordPayment = (proposal_id, auditorPaymentId) => {
+    console.log("this is auditor payment id", auditorPaymentId);
+    setAuditorPaymentId(auditorPaymentId);
+    setProposalId(proposal_id);
+    setisLeaveManagement(true);
+  };
 
   // Fetch data function
   const fetchData = useCallback(() => {
     setLoading(true);
-    const url = `/api/payment/getAllProposalDetailsWithPayment`;
+    const url = `/api/worklogs/getAllLeaveRequestsAuditor`;
 
     axios
       .get(url, {
@@ -120,9 +158,11 @@ const PaymentRequestTable = () => {
           pageSize: tableParams.pagination.pageSize,
           sort: sortData, // No need for template literal `${sortData}`
           keyword: searchKeyword,
+          auditorId:user._id
         },
       })
       .then((response) => {
+        console.log("Response:", response); // Log the response to see its structure
         const { data } = response;
         const { data: responseData, total, currentPage } = data;
 
@@ -131,10 +171,6 @@ const PaymentRequestTable = () => {
           key: `${row._id}-${index}`, // Combine _id with index for a unique key
         }));
         setFlattenedTableData(flattenedData);
-
-        console.log("Flattened Data:", flattenedData[0].balanceAmount);
-
-        setBalanceAmount(flattenedData[0].balanceAmount);
 
         setTableParams((prevState) => ({
           ...prevState,
@@ -267,53 +303,123 @@ const PaymentRequestTable = () => {
     });
   };
 
-  const columns = [
-    {
-      title: "Proposal Number",
-      dataIndex: "proposal_number",
-      key: "proposal_number",
-    },
-    {
-      title: "FBO Name",
-      dataIndex: "fbo_name",
-      key: "fbo_name",
-    },
-    {
-      title: "NO. of Payments",
-      dataIndex: "noOfPayments",
-      key: "noOfPayments",
-      render: (text, record) => (
+  // Handle Menu
+  const handleMenuClick = (record, { key }) => {
+    switch (key) {
+      case "View Leave":
+        showLeaveManagementModal(record);
+        break;
+
+      default:
+        break;
+    }
+  };
+
+  const menu = (record) => (
+    <Menu
+      onClick={(e) => handleMenuClick(record, e)}
+      style={{ padding: "8px" }}
+    >
+      <Menu.Item
+        key="View Leave"
+        style={{ margin: "8px 0", backgroundColor: "#F0F4F8" }} // Industry standard light gray background
+      >
         <span
-          style={{ color: "#1677ff", cursor: "pointer" }}
-          onClick={() => handleProposalNumberClick(record)}
+          style={{ color: "#1890FF", fontWeight: "bold", fontSize: "12px" }} // Industry standard blue for links
         >
-          {text}
+          <EyeOutlined /> View
         </span>
+      </Menu.Item>
+    </Menu>
+  );
+
+  const columns = [
+    // {
+    //   title: "Auditor Name",
+    //   dataIndex: "requester_name",
+    //   key: "requester_name",
+    // },
+    {
+      title: "Leave Type",
+      dataIndex: "leaveType",
+      key: "leaveType",
+      render: (text) => (
+        <Tag color={text === "sickLeave" ? "red" : "blue"}>
+          {text?.toUpperCase()}
+        </Tag>
       ),
     },
+    {
+      title: "Reason",
+      dataIndex: "reason",
+      key: "reason",
+    },
+    {
+      title: "Start Date",
+      dataIndex: "fromDate",
+      key: "fromDate",
+      render: (fromDate) => fromDate || "N/A",
+    },
+    {
+      title: "End Date",
+      dataIndex: "toDate",
+      key: "toDate",
+      render: (toDate) => toDate || "N/A",
+    },
+    {
+      title: "Total Days",
+      key: "totalDays",
+      render: (_, record) => {
+        const [fDay, fMonth, fYear] = record.fromDate.split("-").map(Number);
+        const [tDay, tMonth, tYear] = record.toDate.split("-").map(Number);
+        const fromDate = new Date(fYear, fMonth - 1, fDay);
+        const toDate = new Date(tYear, tMonth - 1, tDay);
 
-    {
-      title: "Proposal Value",
-      dataIndex: "Proposal_value",
-      key: "Proposal_value",
+        const diffTime = Math.abs(toDate - fromDate);
+        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1;
+
+        return diffDays;
+      },
     },
     {
-      title: "Payment Received",
-      dataIndex: "paymentReceived",
-      key: "paymentReceived",
+      title: "Status",
+      dataIndex: "leaveStatus",
+      key: "leaveStatus",
+      render: (status) => (
+        <Badge
+          status={
+            status === "approved"
+              ? "success"
+              : status === "pending"
+              ? "warning"
+              : "error"
+          }
+          text={status?.toUpperCase()}
+        />
+      ),
     },
     {
-      title: "Balance Amount",
-      dataIndex: "balanceAmount",
-      key: "balanceAmount",
+      title: "Requested On",
+      dataIndex: "createdAt",
+      key: "createdAt",
+      render: (date) => new Date(date).toLocaleDateString(),
     },
+    // {
+    //   title: "Action",
+    //   key: "action",
+    //   render: (_, record) => (
+    //     <Dropdown
+    //       overlay={menu(record)}
+    //       trigger={["click"]}
+    //       placement="bottomLeft"
+    //       arrow
+    //       danger
+    //     >
+    //       <Button type="link" icon={<MoreOutlined />} />
+    //     </Dropdown>
+    //   ),
+    // },
   ];
-
-  // Add this function above your return or wherever appropriate
-  const handleProposalNumberClick = (record) => {
-    setAuditorPaymentId(record._id);
-    setIsModalVisible(true);
-  };
 
   // Fetch data when shouldFetch changes
   useEffect(() => {
@@ -362,9 +468,7 @@ const PaymentRequestTable = () => {
     <AdminDashboard>
       <div className="bg-blue-50 m-6">
         <div className="flex justify-between items-center mb-4">
-          <h2 className="text-xl font-semibold">
-            Proposal Table With the Payment Received
-          </h2>
+          <h2 className="text-xl font-semibold">Leave Request Table</h2>
           <div className="space-x-2">
             <Space wrap></Space>
             {/* <Button shape="round" icon={<FilterOutlined />} size="default">
@@ -379,7 +483,14 @@ const PaymentRequestTable = () => {
             </Button> */}
           </div>
         </div>
-
+        <div className="flex justify-end">
+          <Button
+            type="primary"
+            onClick={() => setIsLeaveFormVisible(true)}
+          >
+            Request Leave
+          </Button>
+        </div>
         <div className="flex justify-between my-4">
           <ConfigProvider
             theme={{
@@ -407,7 +518,7 @@ const PaymentRequestTable = () => {
                   fontWeight: sortData === "alllist" ? "500" : "normal",
                 }}
               >
-                All List
+           New Request
               </Radio.Button>
               <Radio.Button
                 value="newproposal"
@@ -422,20 +533,22 @@ const PaymentRequestTable = () => {
                   fontWeight: sortData === "alllist" ? "normal" : "500",
                 }}
               >
-                New Proposal
+                Older Request
               </Radio.Button>
+             
             </Radio.Group>
+
           </ConfigProvider>
 
           <div className="space-x-2">
-            <Input
+            {/* <Input
               size="default"
               placeholder="Search by FBO Name"
               prefix={<SearchOutlined />}
               value={searchKeyword}
               onChange={handleInputChange}
               style={{ width: 300 }}
-            />
+            /> */}
           </div>
         </div>
 
@@ -467,14 +580,21 @@ const PaymentRequestTable = () => {
         </div>
       </div>
 
-      <PaymentRecordModal
-        visible={isModalVisible}
-        proposalId={auditorPaymentId}
-        onClose={() => setIsModalVisible(false)}
-        balanceAmount={balanceAmount}
+      <LeaveManagementModal
+        visible={isLeaveManagement}
+        onClose={handleCancel}
+        workLogId={workLogId}
+        userId={userId}
+        onLeaveUpdated={() => setShouldFetch(true)} // Callback to refresh data after modal actions
+      />
+      <LeaveRequestForm
+        fetchData={handleSuccess}
+        visible={isLeaveFormVisible}
+        onClose={() => setIsLeaveFormVisible(false)}
+        auditorId={user._id}
       />
     </AdminDashboard>
   );
 };
 
-export default PaymentRequestTable;
+export default LeaveRequestTable;

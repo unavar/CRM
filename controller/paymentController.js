@@ -8,6 +8,7 @@ import AuditorPayment from "../models/auditorPaymentModel.js";
 import { User } from "../models/usersModel.js";
 import { fileURLToPath } from "url";
 import moment from "moment";
+import exp from "constants";
 
 
 // Get the correct directory name in ES modules
@@ -168,6 +169,8 @@ export const getAllProposalDetailsWithPayment = async (req, res) => {
       .sort(sortQuery)
       .select("proposal_number fbo_name outlets proposal_date status createdAt updatedAt");
 
+    
+     
     // Step 6: Calculate proposal values
     const proposalsWithCounts = await Promise.all(
       proposals.map(async (proposal) => {
@@ -189,6 +192,12 @@ export const getAllProposalDetailsWithPayment = async (req, res) => {
         });
         const paymentReceived = payments.reduce((sum, payment) => sum + parseFloat(payment.amountReceived || 0), 0);
 
+       const noOfPayments = await AuditorPayment.countDocuments({
+  proposalId: proposal._id,
+  status: 'accepted',
+});
+
+
         return {
           _id: proposal._id,
           proposal_number: proposal.proposal_number,
@@ -197,6 +206,9 @@ export const getAllProposalDetailsWithPayment = async (req, res) => {
           notInvoicedOutlets,
           Proposal_value: `₹${overallTotal.toFixed(2)}` || "₹0.00",
           paymentReceived: `₹${paymentReceived.toFixed(2)}` || "₹0.00",
+          balanceAmount: `₹${(overallTotal - paymentReceived).toFixed(2)}`,
+          noOfPayments: noOfPayments || 0,
+          
         };
       })
     );
@@ -291,6 +303,7 @@ export const getAllProposalDetails = async (req, res) => {
           notInvoicedOutlets,
           Proposal_value: `₹${overallTotal.toFixed(2)}` || "₹0.00",
           paymentReceived: `₹${paymentReceived.toFixed(2)}` || "₹0.00",
+          balanceAmount: `₹${(overallTotal - paymentReceived).toFixed(2)}`,
         };
       })
     );
@@ -399,6 +412,7 @@ export const getAllProposalDetailsForPayment = async (req, res) => {
         amountReceived: payment.amountReceived || 0,
         referenceNumber: payment.referenceNumber || "N/A",
         paymentStatus: payment.status || "pending",
+        balanceAmount: `₹${(overallTotal - (payment.amountReceived || 0)).toFixed(2)}`,
       };
     });
 
@@ -766,3 +780,169 @@ export const deleteFields = async (req, res) => {
 };
 
 
+export const getNoOfPayment = async (req, res) => {
+  try {
+    const { proposalId } = req.params;
+
+    if (!proposalId) {
+      return res.status(400).json({ message: "Proposal ID is required." });
+    }
+
+    // Find all payments for the given proposalId and populate auditorId
+    const payments = await AuditorPayment.find({ proposalId })
+      .populate({
+        path: "auditorId",
+        model: User,
+        select: "userName"
+      })
+      .select("amountReceived auditorId"); // Only select amountReceived and auditorId
+
+    // Map to desired response format
+    const result = payments.map(payment => ({
+      _id: payment._id,
+      auditorName: payment.auditorId ? payment.auditorId.userName : null,
+      amountReceived: payment.amountReceived
+
+    }));
+
+    res.status(200).json({ payments: result });
+  } catch (error) {
+    console.error("Error fetching number of payments:", error);
+    res.status(500).json({ message: "Server error" });
+  }
+};
+
+export const getAllProposalDetailsAuditor = async (req, res) => {
+  try {
+    console.log("Request body:", req.body);
+
+    // Step 1: Extract query parameters and auditorId
+    const { page = 1, pageSize = 10, sort, status, keyword, auditorId } = req.query;
+
+    const pageNumber = parseInt(page, 10);
+    const sizePerPage = parseInt(pageSize, 10);
+
+    if (isNaN(pageNumber) || pageNumber < 1 || isNaN(sizePerPage) || sizePerPage < 1) {
+      return res.status(400).json({ message: "Invalid page or pageSize parameter" });
+    }
+
+    // Step 2: Sorting logic
+    let sortQuery = { createdAt: 1 }; // Default sorting (oldest first)
+    if (sort === "newproposal") sortQuery = { createdAt: -1 };
+    else if (sort === "alllist") sortQuery = { createdAt: 1 };
+
+    // Step 3: Create filter query dynamically
+    let filterQuery = {};
+
+    // Filter by auditorId if provided
+    if (auditorId) {
+      filterQuery.auditorId = auditorId;
+    }
+
+    // Adding the status filter
+    if (status) {
+      const statusArray = Array.isArray(status) ? status : status.split(",");
+      filterQuery.status = { $in: statusArray };
+    }
+
+    // **Search Query Logic**
+    if (keyword) {
+      filterQuery.$or = [
+        { "proposalId.proposal_number": { $regex: new RegExp(keyword, "i") } },
+        { "proposalId.fbo_name": { $regex: new RegExp(keyword, "i") } },
+      ];
+    }
+
+    console.log("Filter Query:", JSON.stringify(filterQuery, null, 2));  // Debug: Check if the filter query is correctly built
+
+    // Step 4: Fetch Auditor Payments with Search Applied
+    const auditorPayments = await AuditorPayment.find(filterQuery)
+      .populate({
+        path: "auditorId",
+        model: User,
+        select: "userName",
+      })
+      .populate({
+        path: "proposalId",
+        select: "proposal_number fbo_name outlets proposal_date status createdAt updatedAt",
+      })
+      .sort(sortQuery)
+      .skip((pageNumber - 1) * sizePerPage)
+      .limit(sizePerPage);
+
+    console.log("Fetched AuditorPayments:", auditorPayments.length);  // Debug: Check the fetched data length
+
+    if (!auditorPayments.length) {
+      return res.json({ total: 0, currentPage: pageNumber, data: [] });
+    }
+
+    // Step 5: Process each payment and add fallback 'N/A' for missing data
+    const proposalsWithAuditor = await Promise.all(
+      auditorPayments.map(async (payment) => {
+        const proposal = payment.proposalId;
+        const auditor = payment.auditorId;
+
+        // Prepare response fields with default null or fallback values
+        let totalProposalValue = 0;
+        let gst = 0;
+        let overallTotal = 0;
+        let totalReceived = 0;
+
+        // If proposal exists, calculate values, otherwise set to null
+        if (proposal) {
+          totalProposalValue = proposal.outlets.reduce(
+            (acc, outlet) => acc + parseFloat(outlet.amount?.$numberInt || outlet.amount || 0),
+            0
+          );
+          gst = totalProposalValue * 0.18;
+          overallTotal = totalProposalValue + gst;
+
+          // Calculate total payment received
+          const paymentReceived = await AuditorPayment.aggregate([
+            {
+              $match: {
+                proposalId: proposal._id,
+                status: "accepted",
+              },
+            },
+            {
+              $group: {
+                _id: null,
+                totalReceived: { $sum: "$amountReceived" },
+              },
+            },
+          ]);
+          totalReceived = paymentReceived?.[0]?.totalReceived || 0;
+        }
+
+        return {
+          _id: proposal ? proposal._id : null,
+          proposal_number: proposal ? proposal.proposal_number : "N/A",  // Default to "N/A" if proposal is missing
+          auditor_paymentId: payment._id,
+          fbo_name: proposal ? proposal.fbo_name : "N/A",  // Default to "N/A" if proposal is missing
+          totalOutlets: proposal ? proposal.outlets.length : 0,  // Default to 0 if proposal is missing
+          notInvoicedOutlets: proposal ? proposal.outlets.filter((outlet) => !outlet.is_invoiced).length : 0,  // Default to 0 if proposal is missing
+          status: payment.status,
+          auditor_id: auditor ? auditor._id : "N/A",  // Default to "N/A" if auditor is missing
+          auditor_name: auditor ? auditor.userName : "N/A",  // Default to "N/A" if auditor is missing
+          Proposal_value: proposal ? `₹${overallTotal.toFixed(2)}` : "N/A",  // Default to "N/A" if proposal is missing
+          paymentReceived: `₹${totalReceived.toFixed(2)}`,
+          amounToVerify: `₹${payment.amountReceived.toFixed(2)}`,
+        };
+      })
+    );
+
+    // Step 6: Get total count for pagination
+    const totalCount = await AuditorPayment.countDocuments(filterQuery);
+
+    // Step 7: Send response with paginated results
+    res.json({
+      total: totalCount,
+      currentPage: pageNumber,
+      data: proposalsWithAuditor,
+    });
+  } catch (error) {
+    console.error("Error fetching proposals:", error);
+    res.status(500).json({ message: "Internal server error" });
+  }
+};

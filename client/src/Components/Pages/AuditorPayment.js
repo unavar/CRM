@@ -30,6 +30,7 @@ import toast from "react-hot-toast";
 import { ExclamationCircleFilled } from "@ant-design/icons";
 import PaymentModal from "../Layout/PaymentModal";
 import { useAuth } from "../Context/AuthContext";
+import { title } from "process";
 
 const { confirm } = Modal;
 
@@ -379,24 +380,20 @@ const columns = [
         key: "fbo_name",
     },
     {
-        title: "No. of Outlets",
-        dataIndex: "totalOutlets",
-        key: "totalOutlets",
-    },
-    {
-        title: "Outlets Pending for Invoicing",
-        dataIndex: "notInvoicedOutlets",
-        key: "notInvoicedOutlets",
-    },
-    {
         title: "Proposal Value",
         dataIndex: "Proposal_value",
         key: "Proposal_value",
     },
+    
     {
         title: "Payment Received",
         dataIndex: "paymentReceived",
         key: "paymentReceived",
+    },
+    {
+      title:"Balance Amount",
+      dataIndex: "balanceAmount",
+      key: "balanceAmount",
     },
     {
         title: "Record Payment",
@@ -410,21 +407,7 @@ const columns = [
             </Button>
         ),
     },
-    // {
-    //   title: "Action",
-    //   key: "action",
-    //   render: (_, record) => (
-    //     <Dropdown
-    //       overlay={menu(record)}
-    //       trigger={["click"]}
-    //       placement="bottomLeft"
-    //       arrow
-    //       danger
-    //     >
-    //       <Button type="link" icon={<MoreOutlined />} />
-    //     </Dropdown>
-    //   ),
-    // },
+  
 ];
 
   // Fetch data when shouldFetch changes
@@ -470,6 +453,10 @@ const columns = [
         toast.error("Failed to update status");
       });
   };
+  // Find the selected proposal's balanceAmount to pass to PaymentModal
+  const selectedProposal = flattenedTableData.find(item => item._id === proposalId);
+  const selectedBalanceAmount = selectedProposal ? selectedProposal.balanceAmount : 0;
+
   return (
     <AdminDashboard>
       <div className="bg-blue-50 m-6">
@@ -586,7 +573,12 @@ const columns = [
           </ConfigProvider>
         </div>
       </div>
-    <PaymentModal visible={isPaymentModalVisible}  proposalId={proposalId}  handleCancel={handleCancelPayment} />
+      <PaymentModal
+        visible={isPaymentModalVisible}
+        balanceAmount={selectedBalanceAmount}
+        proposalId={proposalId}
+        handleCancel={handleCancelPayment}
+      />
     </AdminDashboard>
   );
 };

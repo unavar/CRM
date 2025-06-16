@@ -248,16 +248,43 @@ const AdminDashboard = ({ children }) => {
       label: "Work Log",
       key: "/work-log",
       icon: <CarryOutOutlined />,
-      link: "/WorkLog2",
-      roles: [ "AUDITOR"],
+      roles: ["AUDITOR"],
+      children: [
+        {
+          label: "Add Work",
+          key: "/add-work",
+          link: "/WorkLog2",
+          roles: ["AUDITOR"],
+        },
+        {
+          label: "Request Leaves",
+          key: "/leave-request-auditor", 
+          link: "/leave-request-auditor",
+          roles: ["AUDITOR"],
+        }
+      ]
     },
    
     {
       label: "Payment  ",
-      key: "/",
+      key: "/auditor-payment",
       icon: <CreditCardOutlined />,
       link: "/auditor-payment",
       roles: [ "AUDITOR"],
+       children: [
+        {
+          label: "Payment Record",
+          key: "/auditor-payment",
+          link: "/auditor-payment",
+          roles: ["AUDITOR"],
+        },
+        {
+          label: "Payment Logs",
+          key: "/PaymentRequestAuditor",
+          link: "/PaymentRequestAuditor",
+          roles: ["AUDITOR"],
+        },
+      ]
     },
     {
       label: "Payment follow up",

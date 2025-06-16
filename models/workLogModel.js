@@ -38,10 +38,8 @@ const workLogSchema = new mongoose.Schema(
     },
     leaveType: {
       type: String,
-      enum: ["sickLeave", "casualLeave"],
-      required: function () {
-        return this.workType === "leave";
-      },
+      enum: ["sickLeave", "casualLeave","lop"],
+   
     },
     leaveStatus: {
       type: String,

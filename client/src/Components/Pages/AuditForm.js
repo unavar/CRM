@@ -73,7 +73,7 @@ const AuditForm = () => {
       case "in-progress":
         return "bg-blue-100 text-blue-800 rounded-full";
       default:
-        return "bg-gray-100 text-gray-800 rounded-full";
+        return "bg-green-100 text-green-800 rounded-full";
     }
   };
 
@@ -741,7 +741,7 @@ const AuditForm = () => {
                   style={{
                     maxHeight: "500px", // Adjust container height
                     overflowY: "auto", // Enable vertical scrolling
-                    padding: "24px",
+                    padding: "20px",
                     backgroundColor: "#f6f9fc",
                     borderRadius: "8px",
                     scrollbarWidth: "thin", // For Firefox
@@ -862,7 +862,7 @@ const AuditForm = () => {
                                   <br />
                                   {/* Conditional rendering based on 'rejected' or 'approved' status */}
                                   {statusHistory.status === "modified" ||
-                                  statusHistory.status === "approved" ? (
+                                  statusHistory.status === "approved"  ? (
                                     <>
                                       <Text className="font-medium">
                                         {statusHistory.userName}
@@ -954,6 +954,7 @@ const AuditForm = () => {
           <CurrentStepModal
             visible={currentStepModalVisible}
             onClose={closeCurrentStepModal}
+            reload={fetchAudit}
           />
         </div>
       </Spin>

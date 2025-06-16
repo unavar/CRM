@@ -34,6 +34,9 @@ const auditSchema = new mongoose.Schema(
         "submitted",
         "approved",
         "rejected",
+         "Physical Audit Completed",
+         "Documentation Work On",
+         "FSSAI Portal Updated",
       ],
       default: "assigned",
     },
@@ -67,6 +70,11 @@ const auditSchema = new mongoose.Schema(
             "submitted",
             "approved",
             "rejected",
+            
+            "Physical Audit Completed",
+            "Documentation Work On",
+            "FSSAI Portal Updated",
+            
           ],
         },
         changedAt: {

@@ -147,6 +147,7 @@ const GenerateProposalModal = ({
                 man_days: man_days,
                 amount: 0,
                 vertical_of_industry: vertical_of_industry,
+                
               };
             })
           );
@@ -200,6 +201,8 @@ const GenerateProposalModal = ({
             pincode: businessData.address?.pincode || "",
             gst_number: businessData.gst_number,
             contact_person: businessData.contact_person,
+            phone: businessData.phone,
+
           });
 
           setInitialValuesLoaded(true);

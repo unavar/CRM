@@ -352,16 +352,7 @@ const PaymentRequestTable = () => {
       dataIndex: "fbo_name",
       key: "fbo_name",
     },
-    {
-      title: "No. of Outlets",
-      dataIndex: "totalOutlets",
-      key: "totalOutlets",
-    },
-    {
-      title: "Outlets Pending for Invoicing",
-      dataIndex: "notInvoicedOutlets",
-      key: "notInvoicedOutlets",
-    },
+  
     {
       title: "Proposal Value",
       dataIndex: "Proposal_value",

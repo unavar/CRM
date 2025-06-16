@@ -492,12 +492,12 @@ const WorkLogTable = () => {
                 Add Work
               </Button>
 
-              <Button
+              {/* <Button
                 type="primary"
                 onClick={() => setIsLeaveFormVisible(true)}
               >
                 Request Leave
-              </Button>
+              </Button> */}
             </div>
           </div>
 
@@ -511,7 +511,7 @@ const WorkLogTable = () => {
                 },
               }}
             >
-              <Radio.Group
+              {/* <Radio.Group
                 value={sortData}
                 onChange={(e) => setSortData(e.target.value)}
               >
@@ -545,7 +545,7 @@ const WorkLogTable = () => {
                 >
                   Last Added
                 </Radio.Button>
-              </Radio.Group>
+              </Radio.Group> */}
             </ConfigProvider>
 
             <div className="space-x-2">

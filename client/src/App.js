@@ -52,6 +52,7 @@ import WorkLogCalendarAuditor from "./Components/Pages/WorkLogCalendarAuditor";
 import AdminWorkLogCalendar from "./Components/Pages/AdminWorkLogCalendar";
 import LeaveRequestTable from "./Components/Pages/LeaveRequestTable";
 import RegisterUser from "./Components/Layout/RegisterUser";
+import LeaveRequestAuditor from "./Components/Pages/LeaveRequestAuditor";
 import {
   AccountAdminRoute,
   AuditAdminRoute,
@@ -59,13 +60,16 @@ import {
 import AuditTrack from "./Components/Pages/AuditorTrack";
 import Summary from "./Components/Pages/Summary";
 
+import PaymentRequestAuditor from "./Components/Pages/PaymentRequestAuditor";
+
 function App() {
   return (
     <>
       <Routes>
-         <Route path="/reg" element={<RegisterUser />} />
+         {/* <Route path="/reg" element={<RegisterUser />} />
+         <Route path="/in" element={<InstagramLogin />} /> */}
         <Route path="/" element={<LoginPage />} />
-        <Route path="/emp-form" element={<EmployeeWorkForm />} />
+        {/* <Route path="/emp-form" element={<EmployeeWorkForm />} /> */}
 
         <Route path="/emp-dashboard" element={<EmployeeDashboard />} />
         <Route path="/forgot-password" element={<ForgotPasswordPage />} />
@@ -136,6 +140,7 @@ function App() {
           <Route path="/payment-request" element={<PaymentRequestTable />} />
           <Route path="/all-payment" element={<AllPaymentRequest />} />
           <Route path="/leave-request" element={<LeaveRequestTable />} />
+          <Route path="/leave-request-auditor" element={<LeaveRequestAuditor />} />
 
           <Route
             path="/submittedForApproval"
@@ -153,6 +158,8 @@ function App() {
           <Route path="/work-log/:date" element={<WorkLogTable />} />
           <Route path="/WorkLog2" element={<WorkLogCalendarAuditor />} />
           <Route path="/auditor-payment" element={<AuditorPayment />} />
+          <Route path="/PaymentRequestAuditor" element={<PaymentRequestAuditor />} />
+
           <Route
             path="/admin-work-log/:fromDate?/:toDate?"
             element={<AdminWorkLogTable />}
