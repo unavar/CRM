@@ -68,20 +68,9 @@ const LeaveManagementModal = ({ visible, onClose, userId, workLogId ,onLeaveUpda
 
   const nonLOPColumns = [
     { title: "Leave Type", dataIndex: "type", key: "type" },
-    ...(leaveData?.totalLeavesTaken?.status !== "approved" ? [
-      { 
-        title: "This Month(taken)", 
-        dataIndex: "thisMonth", 
-        key: "thisMonth",
-        render: (text) => text > 0 ? <span>+{text}</span> : text
-      }
-    ] : []),
-    { 
-      title: "Overall(Available)", 
-      dataIndex: "overall", 
-      key: "overall",
-      render: (text) => text > 0 ? <span>+{text}</span> : text
-    },
+    { title: "This Month(taken)", dataIndex: "thisMonth", key: "thisMonth" },
+    { title: "Overall(Available)", dataIndex: "overall", key: "overall" },
+
   ];
 
   const totalLeavesColumns =

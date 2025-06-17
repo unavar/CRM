@@ -10,7 +10,7 @@ const AuditorPaymentSchema = new mongoose.Schema(
     },
     auditorId: {
       type: mongoose.Schema.Types.ObjectId,
-      ref: "Auditor",
+      ref: "User",
       required: true,
       index: true, // ✅ Faster lookups
     },
