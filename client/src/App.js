@@ -66,10 +66,7 @@ function App() {
   return (
     <>
       <Routes>
-         {/* <Route path="/reg" element={<RegisterUser />} />
-         <Route path="/in" element={<InstagramLogin />} /> */}
         <Route path="/" element={<LoginPage />} />
-        {/* <Route path="/emp-form" element={<EmployeeWorkForm />} /> */}
 
         <Route path="/emp-dashboard" element={<EmployeeDashboard />} />
         <Route path="/forgot-password" element={<ForgotPasswordPage />} />
@@ -140,7 +137,10 @@ function App() {
           <Route path="/payment-request" element={<PaymentRequestTable />} />
           <Route path="/all-payment" element={<AllPaymentRequest />} />
           <Route path="/leave-request" element={<LeaveRequestTable />} />
-          <Route path="/leave-request-auditor" element={<LeaveRequestAuditor />} />
+          <Route
+            path="/leave-request-auditor"
+            element={<LeaveRequestAuditor />}
+          />
 
           <Route
             path="/submittedForApproval"
@@ -158,7 +158,10 @@ function App() {
           <Route path="/work-log/:date" element={<WorkLogTable />} />
           <Route path="/WorkLog2" element={<WorkLogCalendarAuditor />} />
           <Route path="/auditor-payment" element={<AuditorPayment />} />
-          <Route path="/PaymentRequestAuditor" element={<PaymentRequestAuditor />} />
+          <Route
+            path="/PaymentRequestAuditor"
+            element={<PaymentRequestAuditor />}
+          />
 
           <Route
             path="/admin-work-log/:fromDate?/:toDate?"

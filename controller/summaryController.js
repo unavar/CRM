@@ -100,30 +100,54 @@ export const generateProposalExcel = async (req, res) => {
 
     // Fetch daily work logs in date range
     const workLogs = await WorkLog.find({
-      date: { $gte: start, $lte: end },
+      createdAt: { $gte: start, $lte: end }, // ✅ Use createdAt or the actual field
     })
-      .populate("user")
+      .populate("userId", "userName") // ✅ Correct field to populate
       .lean();
 
     // Group work logs by date
     const workLogsByDate = workLogs.reduce((acc, log) => {
-      const dateKey = moment(log.date).format("YYYY-MM-DD");
+      const dateKey = moment(log.createdAt).format("YYYY-MM-DD");
+
       if (!acc[dateKey]) {
         acc[dateKey] = {
-          date: log.date,
-          executiveName: log.user ? log.user.name : "N/A",
+          date: dateKey,
+          executiveName: log.userId?.userName || "N/A",
           descriptions: [],
           remarks: [],
         };
       }
-      if (log.description) {
+
+      // Handle descriptions
+      if (log.workType === "leave" && log.leaveStatus === "approved") {
+        let leaveDesc = "";
+
+        if (log.leaveType === "sickLeave") {
+          leaveDesc = "Sick Leave";
+        } else if (log.leaveType === "casualLeave") {
+          leaveDesc = "Casual Leave";
+        }
+
+        if (log.isLOP) {
+          leaveDesc += leaveDesc ? " + LOP" : "LOP";
+        }
+
+        if (leaveDesc) {
+          acc[dateKey].descriptions.push(leaveDesc);
+        }
+      } else if (log.description) {
         acc[dateKey].descriptions.push(log.description);
       }
+
+      // Handle remarks
       if (log.remarks) {
         acc[dateKey].remarks.push(log.remarks);
       }
+
       return acc;
     }, {});
+
+    console.log("workLogsByDate:", workLogsByDate);
 
     console.log(proposals);
 
@@ -283,11 +307,14 @@ export const generateProposalExcel = async (req, res) => {
       "Non Mou",
       "MOU",
       "Non Mou",
-      "", // For Remarks
+      "MOU",
+      "Non Mou",
+      "MOU",
+      "Non Mou",
+      "",
     ];
-
+    dailyWorkSheet.addRow(headerRow1);
     const headerRow2Actual = dailyWorkSheet.addRow(headerRow2);
-    const headerRow1Actual = dailyWorkSheet.addRow(headerRow1);
 
     // Define the columns for data rows (based on the second header row)
     dailyWorkSheet.columns = [
@@ -365,7 +392,7 @@ export const generateProposalExcel = async (req, res) => {
     headerRow2Style.alignment = { vertical: "middle", horizontal: "center" };
 
     // Apply specific colors to MOU and Non Mou cells in the second header row
-    headerRow2Actual.eachCell((cell, colNumber) => {
+    headerRow2Actual.eachCell((cell) => {
       if (cell.value === "MOU") {
         cell.fill = {
           type: "pattern",
@@ -507,14 +534,12 @@ export const generateProposalExcel = async (req, res) => {
       paymentSummarySheet.addRow(rowData);
     });
 
-    // Add data to Daily Work Sample sheet
-    Object.values(workLogsByDate).forEach((dailyLog) => {
-      dailyWorkSheet.addRow({
-        date: dailyLog.date ? moment(dailyLog.date).format("DD.MM.YYYY") : "",
-        executiveName: dailyLog.executiveName,
-        description: dailyLog.descriptions.join("; "), // Concatenate descriptions
-        // Placeholder for HR, ERC, BHOG, etc. MOU/Non Mou values
-        // You will need to define how these values are derived from your WorkLog model
+    Object.values(workLogsByDate).forEach((workLog) => {
+      const row = dailyWorkSheet.addRow({
+        date: workLog.date ? moment(workLog.date).format("DD.MM.YYYY") : "",
+        executiveName: workLog.executiveName,
+        description: workLog.descriptions.join("\n"), // Each task on a new line
+
         hrMOU: "",
         hrNonMou: "",
         hrRevenueMOU: "",
@@ -545,9 +570,56 @@ export const generateProposalExcel = async (req, res) => {
         tpaRevenueNonMou: "",
         totalUnavarRevenueMOU: "",
         totalUnavarRevenueNonMou: "",
-        remarks: dailyLog.remarks.join("; "), // Concatenate remarks
+
+        // ✅ Corrected from `dailyLog` to `workLog`
+        remarks: workLog.remarks.join("\n"),
       });
+      // Enable text wrapping for the description and remarks columns
+      row.getCell('description').alignment = { wrapText: true };
+      row.getCell('remarks').alignment = { wrapText: true };
     });
+
+    // // Add data to Daily Work Sample sheet
+    // Object.values(workLogsByDate).forEach((dailyLog) => {
+    //   dailyWorkSheet.addRow({
+    //     date: dailyLog.date ? moment(dailyLog.date).format("DD.MM.YYYY") : "",
+    //     executiveName: dailyLog.executiveName,
+    //     description: dailyLog.descriptions.join("; "), // Concatenate descriptions
+    //     // Placeholder for HR, ERC, BHOG, etc. MOU/Non Mou values
+    //     // You will need to define how these values are derived from your WorkLog model
+    //     hrMOU: "dsffsd",
+    //     hrNonMou: "",
+    //     hrRevenueMOU: "",
+    //     hrRevenueNonMou: "",
+    //     ercMOU: "",
+    //     ercNonMou: "",
+    //     ercRevenueMOU: "",
+    //     ercRevenueNonMou: "",
+    //     bhogMOU: "",
+    //     bhogNonMou: "",
+    //     bhogRevenueMOU: "sss",
+    //     bhogRevenueNonMou: "",
+    //     csfhMOU: "",
+    //     csfhNonMou: "",
+    //     csfhRevenueMOU: "",
+    //     csfhRevenueNonMou: "",
+    //     cvmMOU: "",
+    //     cvmNonMou: "",
+    //     cvmRevenueMOU: "",
+    //     cvmRevenueNonMou: "",
+    //     ersMOU: "",
+    //     ersNonMou: "",
+    //     ersRevenueMOU: "",
+    //     ersRevenueNonMou: "",
+    //     tpaMOU: "",
+    //     tpaNonMou: "",
+    //     tpaRevenueMOU: "",
+    //     tpaRevenueNonMou: "",
+    //     totalUnavarRevenueMOU: "",
+    //     totalUnavarRevenueNonMou: "",
+    //     remarks: dailyLog.remarks.join("; "), // Concatenate remarks
+    //   });
+    // });
 
     // Style the sheets
     [proposalSheet, invoiceSheet, paymentSummarySheet, dailyWorkSheet].forEach(

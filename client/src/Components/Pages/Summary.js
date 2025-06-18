@@ -11,28 +11,44 @@ const SummaryReports = () => {
 
   // Sample summary data - replace with your actual data in production
   const summaryItems = [
-    { id: 1, title: "Summary 1" },
-    { id: 2, title: "Summary 2" }
+    { id: 1, title: "Summary " },
+   
   ];
-
+ 
+  
   const handleDateChange = (dates) => {
     setDateRange(dates);
   };
 
-  const generateAndDownload = (summaryId) => {
-    // Create a completely empty Excel workbook
-    const wb = XLSX.utils.book_new();
-    
-    // Create an empty worksheet
-    const ws = XLSX.utils.aoa_to_sheet([]);
-    
-    // Add empty worksheet to workbook
-    XLSX.utils.book_append_sheet(wb, ws, "Empty Sheet");
-    
-    // Generate Excel file and trigger download
-    XLSX.writeFile(wb, `Summary_Report_${summaryId}.xlsx`);
-    
-    message.success(`Excel sheet downloaded successfully`);
+  const generateAndDownload = async (summaryId) => {
+    if (!dateRange || dateRange.length !== 2) {
+      message.warning("Please select a date range first.");
+      return;
+    }
+
+    const startDate = dateRange[0].format("YYYY-MM-DD");
+    const endDate = dateRange[1].format("YYYY-MM-DD");
+
+    try {
+      const response = await fetch(
+        `/api/summary/generateProposalExcel?startDate=${startDate}&endDate=${endDate}`
+      );
+      if (!response.ok) {
+        throw new Error("Failed to generate Excel file");
+      }
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `Summary_Report_${summaryId}.xlsx`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      window.URL.revokeObjectURL(url);
+      message.success("Excel sheet downloaded successfully");
+    } catch (error) {
+      message.error("Failed to download Excel sheet");
+    }
   };
 
   return (

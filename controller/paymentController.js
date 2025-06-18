@@ -788,21 +788,19 @@ export const getNoOfPayment = async (req, res) => {
       return res.status(400).json({ message: "Proposal ID is required." });
     }
 
-    // Find all payments for the given proposalId and populate auditorId
-    const payments = await AuditorPayment.find({ proposalId })
+    // Only get payments with status 'accepted'
+    const payments = await AuditorPayment.find({ proposalId, status: "accepted" })
       .populate({
         path: "auditorId",
         model: User,
         select: "userName"
       })
-      .select("amountReceived auditorId"); // Only select amountReceived and auditorId
+      .select("amountReceived auditorId");
 
-    // Map to desired response format
     const result = payments.map(payment => ({
       _id: payment._id,
       auditorName: payment.auditorId ? payment.auditorId.userName : null,
       amountReceived: payment.amountReceived
-
     }));
 
     res.status(200).json({ payments: result });
