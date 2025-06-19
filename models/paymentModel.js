@@ -34,6 +34,10 @@ const paymentSchema = new mongoose.Schema(
       enum: ["accepted", "rejected", "pending", "other"],
       required: true,
     },
+    service:{
+      type: String,
+    
+    },
   },
   { timestamps: true } // ✅ Automatically adds createdAt & updatedAt
 );

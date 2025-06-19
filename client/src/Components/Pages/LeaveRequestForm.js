@@ -100,12 +100,12 @@ const LeaveRequestForm = ({ visible, onClose, auditorId, fetchData }) => {
             <Radio
               value="sickLeave"
               disabled={
-                leaveBalance.sickLeaveAvailable + (spansTwoMonths ? 1 : 0) === 0
+                leaveBalance.sickLeaveAvailable==0 
               }
             >
               Sick Leave (
-              {leaveBalance.sickLeaveAvailable + (spansTwoMonths ? 1 : 0)}{" "}
-              available)
+              {leaveBalance.sickLeaveAvailable}
+              )
             </Radio>
             <Radio
               value="casualLeave"
@@ -130,7 +130,7 @@ const LeaveRequestForm = ({ visible, onClose, auditorId, fetchData }) => {
         </Form.Item>
         {spansTwoMonths && (
           <div style={{ marginBottom: "12px", color: "#faad14" }}>
-            Leave spans two months — 1 Sick Leave and 1 Casual Leave will be
+            Leave spans two months —  1 Casual Leave will be
             used.
           </div>
         )}

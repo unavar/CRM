@@ -578,6 +578,7 @@ const columns = [
         balanceAmount={selectedBalanceAmount}
         proposalId={proposalId}
         handleCancel={handleCancelPayment}
+        
       />
     </AdminDashboard>
   );

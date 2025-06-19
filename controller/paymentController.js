@@ -457,9 +457,9 @@ export const saveAuditorPayment = async (req, res) => {
   console.log("Uploaded File:", req.file || "No file uploaded"); // Fix this
 
   try {
-    const { proposalId, amountReceived, referenceNumber, auditor_id } = req.body;
+    const { proposalId, amountReceived, referenceNumber, auditor_id,service} = req.body;
 
-    if (!proposalId || !amountReceived || !referenceNumber || !auditor_id) {
+    if (!proposalId || !amountReceived || !referenceNumber || !auditor_id || !service) {
       return res.status(400).json({ message: "All fields are required." });
     }
 
@@ -474,6 +474,7 @@ export const saveAuditorPayment = async (req, res) => {
       referenceNumber,
       referenceDocument,
       auditorId: auditor_id,
+      service
     });
 
     await newPayment.save();
@@ -942,5 +943,32 @@ export const getAllProposalDetailsAuditor = async (req, res) => {
   } catch (error) {
     console.error("Error fetching proposals:", error);
     res.status(500).json({ message: "Internal server error" });
+  }
+};
+
+
+export const getAuditManagementByProposalAndAuditor = async (req, res) => {
+  console.log("Request body:", req.params);
+  try {
+    const { proposalId, auditorId } = req.params;
+
+    if (!proposalId || !auditorId) {
+      return res.status(400).json({ message: "proposalId and auditorId are required." });
+    }
+
+   const auditRecord = await AuditManagement.find(
+  { proposalId, user: auditorId },
+  { service: 1, _id: 0 }
+);
+
+
+    if (!auditRecord) {
+      return res.status(404).json({ message: "AuditManagement record not found." });
+    }
+
+    res.status(200).json({ auditRecord });
+  } catch (error) {
+    console.error("Error fetching AuditManagement record:", error);
+    res.status(500).json({ message: "Server error" });
   }
 };

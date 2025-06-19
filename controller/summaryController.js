@@ -105,20 +105,22 @@ export const generateProposalExcel = async (req, res) => {
       .populate("userId", "userName") // ✅ Correct field to populate
       .lean();
 
-    // Group work logs by date
-    const workLogsByDate = workLogs.reduce((acc, log) => {
+    const workLogsByDate = {};
+
+    for (const log of workLogs) {
       const dateKey = moment(log.createdAt).format("YYYY-MM-DD");
 
-      if (!acc[dateKey]) {
-        acc[dateKey] = {
+      if (!workLogsByDate[dateKey]) {
+        workLogsByDate[dateKey] = {
           date: dateKey,
           executiveName: log.userId?.userName || "N/A",
           descriptions: [],
           remarks: [],
+          auditorPayments: [], // Auditor payment data will be stored here
         };
       }
 
-      // Handle descriptions
+      // Handle descriptions for leave
       if (log.workType === "leave" && log.leaveStatus === "approved") {
         let leaveDesc = "";
 
@@ -133,21 +135,45 @@ export const generateProposalExcel = async (req, res) => {
         }
 
         if (leaveDesc) {
-          acc[dateKey].descriptions.push(leaveDesc);
+          workLogsByDate[dateKey].descriptions.push(leaveDesc);
         }
       } else if (log.description) {
-        acc[dateKey].descriptions.push(log.description);
+        workLogsByDate[dateKey].descriptions.push(log.description);
       }
 
       // Handle remarks
       if (log.remarks) {
-        acc[dateKey].remarks.push(log.remarks);
+        workLogsByDate[dateKey].remarks.push(log.remarks);
       }
 
-      return acc;
-    }, {});
+      // Handle AuditorPayments if auditorId exists
+      if (log.userId) {
+        const auditorPaymentsForDate = await AuditorPayment.find({
+          auditorId: log.userId,
+          createdAt: {
+            $gte: moment(dateKey).startOf("day").toDate(),
+            $lte: moment(dateKey).endOf("day").toDate(),
+          },
+        })
+          .populate({ path: "auditorId", select: "userName" }) // keep this
+          .populate({ path: "proposalId", select: "customer_type" }) // only populate customer_type
+          .lean();
 
-    console.log("workLogsByDate:", workLogsByDate);
+        for (const payment of auditorPaymentsForDate) {
+          workLogsByDate[dateKey].auditorPayments.push({
+            auditorName: payment.auditorId?.userName || "N/A",
+            customer_type: payment.proposalId?.customer_type || "",
+            service: payment.service || "", // ✅ use directly from AuditorPayment
+            amountReceived: payment.amountReceived || 0,
+          });
+        }
+      }
+    }
+
+    for (const [dateKey, log] of Object.entries(workLogsByDate)) {
+      console.log(`\n📅 Auditor Payments for ${dateKey}:`);
+      console.log(JSON.stringify(log.auditorPayments, null, 2));
+    }
 
     console.log(proposals);
 
@@ -535,90 +561,92 @@ export const generateProposalExcel = async (req, res) => {
     });
 
     Object.values(workLogsByDate).forEach((workLog) => {
-      const row = dailyWorkSheet.addRow({
+      const rowData = {
         date: workLog.date ? moment(workLog.date).format("DD.MM.YYYY") : "",
         executiveName: workLog.executiveName,
-        description: workLog.descriptions.join("\n"), // Each task on a new line
-
-        hrMOU: "",
-        hrNonMou: "",
-        hrRevenueMOU: "",
-        hrRevenueNonMou: "",
-        ercMOU: "",
-        ercNonMou: "",
-        ercRevenueMOU: "",
-        ercRevenueNonMou: "",
-        bhogMOU: "",
-        bhogNonMou: "",
-        bhogRevenueMOU: "",
-        bhogRevenueNonMou: "",
-        csfhMOU: "",
-        csfhNonMou: "",
-        csfhRevenueMOU: "",
-        csfhRevenueNonMou: "",
-        cvmMOU: "",
-        cvmNonMou: "",
-        cvmRevenueMOU: "",
-        cvmRevenueNonMou: "",
-        ersMOU: "",
-        ersNonMou: "",
-        ersRevenueMOU: "",
-        ersRevenueNonMou: "",
-        tpaMOU: "",
-        tpaNonMou: "",
-        tpaRevenueMOU: "",
-        tpaRevenueNonMou: "",
-        totalUnavarRevenueMOU: "",
-        totalUnavarRevenueNonMou: "",
-
-        // ✅ Corrected from `dailyLog` to `workLog`
+        description: workLog.descriptions.join("\n"),
         remarks: workLog.remarks.join("\n"),
+
+        // Initialize all revenue fields to 0
+        hrMOU: 0,
+        hrNonMou: 0,
+        hrRevenueMOU: 0,
+        hrRevenueNonMou: 0,
+        ercMOU: 0,
+        ercNonMou: 0,
+        ercRevenueMOU: 0,
+        ercRevenueNonMou: 0,
+        bhogMOU: 0,
+        bhogNonMou: 0,
+        bhogRevenueMOU: 0,
+        bhogRevenueNonMou: 0,
+        csfhMOU: 0,
+        csfhNonMou: 0,
+        csfhRevenueMOU: 0,
+        csfhRevenueNonMou: 0,
+        cvmMOU: 0,
+        cvmNonMou: 0,
+        cvmRevenueMOU: 0,
+        cvmRevenueNonMou: 0,
+        ersMOU: 0,
+        ersNonMou: 0,
+        ersRevenueMOU: 0,
+        ersRevenueNonMou: 0,
+        tpaMOU: 0,
+        tpaNonMou: 0,
+        tpaRevenueMOU: 0,
+        tpaRevenueNonMou: 0,
+        totalUnavarRevenueMOU: 0,
+        totalUnavarRevenueNonMou: 0,
+      };
+      const serviceMap = {
+        TPA: "tpa",
+        "Hygiene Rating": "hr",
+        "ER Station": "ers",
+        "ER Fruit and Vegetable Market": "erc",
+        "ER Hub": "cvm",
+        "ER Campus": "csfh",
+        "ER Worship Place": "bhog",
+      };
+
+      // Process auditor payments
+      workLog.auditorPayments.forEach((payment) => {
+        const customerType = (payment.customer_type || "").toLowerCase(); // "mou" or "non-mou"
+        const rawService = payment.service || "";
+        const amount = Number(payment.amountReceived || 0);
+
+        // ✅ Always sum up to totalUnavarRevenueX
+        const unavailKey =
+          customerType === "mou"
+            ? "totalUnavarRevenueMOU"
+            : "totalUnavarRevenueNonMou";
+
+        rowData[unavailKey] += amount;
+
+        const keyBase = serviceMap[rawService];
+
+        // If service is valid, add to its specific key
+        if (keyBase && ["mou", "non-mou"].includes(customerType)) {
+          const suffix =
+            customerType === "mou" ? "RevenueMOU" : "RevenueNonMou";
+          const finalKey = `${keyBase}${suffix}`;
+          if (rowData.hasOwnProperty(finalKey)) {
+            rowData[finalKey] += amount;
+          }
+        } else {
+          console.warn(
+            `⏩ Skipping service-specific field for service="${rawService}"`
+          );
+        }
       });
-      // Enable text wrapping for the description and remarks columns
-      row.getCell('description').alignment = { wrapText: true };
-      row.getCell('remarks').alignment = { wrapText: true };
+
+      const row = dailyWorkSheet.addRow(rowData);
+
+      // Enable text wrapping
+      row.getCell("description").alignment = { wrapText: true };
+      row.getCell("remarks").alignment = { wrapText: true };
     });
 
-    // // Add data to Daily Work Sample sheet
-    // Object.values(workLogsByDate).forEach((dailyLog) => {
-    //   dailyWorkSheet.addRow({
-    //     date: dailyLog.date ? moment(dailyLog.date).format("DD.MM.YYYY") : "",
-    //     executiveName: dailyLog.executiveName,
-    //     description: dailyLog.descriptions.join("; "), // Concatenate descriptions
-    //     // Placeholder for HR, ERC, BHOG, etc. MOU/Non Mou values
-    //     // You will need to define how these values are derived from your WorkLog model
-    //     hrMOU: "dsffsd",
-    //     hrNonMou: "",
-    //     hrRevenueMOU: "",
-    //     hrRevenueNonMou: "",
-    //     ercMOU: "",
-    //     ercNonMou: "",
-    //     ercRevenueMOU: "",
-    //     ercRevenueNonMou: "",
-    //     bhogMOU: "",
-    //     bhogNonMou: "",
-    //     bhogRevenueMOU: "sss",
-    //     bhogRevenueNonMou: "",
-    //     csfhMOU: "",
-    //     csfhNonMou: "",
-    //     csfhRevenueMOU: "",
-    //     csfhRevenueNonMou: "",
-    //     cvmMOU: "",
-    //     cvmNonMou: "",
-    //     cvmRevenueMOU: "",
-    //     cvmRevenueNonMou: "",
-    //     ersMOU: "",
-    //     ersNonMou: "",
-    //     ersRevenueMOU: "",
-    //     ersRevenueNonMou: "",
-    //     tpaMOU: "",
-    //     tpaNonMou: "",
-    //     tpaRevenueMOU: "",
-    //     tpaRevenueNonMou: "",
-    //     totalUnavarRevenueMOU: "",
-    //     totalUnavarRevenueNonMou: "",
-    //     remarks: dailyLog.remarks.join("; "), // Concatenate remarks
-    //   });
     // });
 
     // Style the sheets

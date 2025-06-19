@@ -34,6 +34,11 @@ const AuditorPaymentSchema = new mongoose.Schema(
       enum: ["pending", "accepted", "rejected"],
       default: "pending", // ✅ Default status
     },
+    service: {
+      type: String,
+      required: true,
+      trim: true,
+    },
   },
   { timestamps: true } // ✅ Adds `createdAt` & `updatedAt`
 );

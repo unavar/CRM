@@ -13,7 +13,7 @@ import {
   deleteFields,
   updateAuditorPayment,
   getAllProposalDetailsWithPayment,
-  getNoOfPayment,getAllProposalDetailsAuditor
+  getNoOfPayment,getAllProposalDetailsAuditor,getAuditManagementByProposalAndAuditor
 } from "../controller/paymentController.js";
 import multer from "multer";
 
@@ -61,5 +61,7 @@ router.put("/updateAuditorPayment", upload.single("referenceDocument"),  updateA
 router.get("/getNoOfPayment/:proposalId",getNoOfPayment);
 
 router.get("/getAllProposalDetailsAuditor", getAllProposalDetailsAuditor);
+
+router.get("/getAuditManagementByProposalAndAuditor/:proposalId/:auditorId", getAuditManagementByProposalAndAuditor);
 
 export default router;
